@@ -1,8 +1,8 @@
-# Contributing to Rust-FlightPlan
+# Contributing to Blaustein LED
 
 First off, thanks for taking the time to contribute.
 
-The following is a set of guidelines for contributing to Rust-FlightPlan, which is hosted with GitLab.
+The following is a set of guidelines for contributing to Blaustein LED, which is hosted with GitHub.
 These are mostly guidelines, not rules.
 Use your best judgment and feel free to propose changes to this document in a merge request.
 
@@ -44,16 +44,12 @@ ___
 
 ### Reporting Bugs
 
-This section guides you through submitting a bug report for Rust-FlightPlan.
+This section guides you through submitting a bug report for Blaustein LED.
 Following these guidelines helps maintainers and the community to understand your report, reproduce the behavior, and find related reports.
 
 Before creating bug reports,
 check [this list](#before-submitting-a-bug-report) as you might find out that you don't need to create one.
 When you're creating a bug report, [include as many details as possible](#how-do-i-submit-a-good-bug-report).
-Fill out [the required template](.gitlab/issue_templates/Bug.md),
-the information it asks for helps us to resolve issues faster.
-You can likewise submit a new (bug-)issue
-by sending it to [contact-project+flightsimtools-r-fst-r-fp-55242696-issue-@incoming.gitlab.com](mailto:contact-project+flightsimtools-r-fst-r-fp-55242696-issue-@incoming.gitlab.com)
 
 
 
@@ -69,7 +65,6 @@ ___
 #### How Do I Submit A (Good) Bug Report?
 
 Bugs are tracked as Issues.
-Provide the following information by filling in [the template](.gitlab/issue_templates/Bug.md).
 
 Explain the problem and include additional details to help maintainers reproduce the problem:
 
@@ -84,7 +79,7 @@ If you're providing snippets in the issue,
 * *Describe the behavior you observed after following the steps* and point out what exactly is the problem with that behavior.
 * *Explain which behavior you expected to see instead and why.*
 * *Include screenshots and animated GIFs* which show you following the described steps and clearly demonstrate the problem.
-* *If you're reporting that Rust-FlightPlan crashed*, include a crash report with a stack trace from the operating system.
+* *If you're reporting that Blaustein LED crashed*, include a crash report with a stack trace from the operating system.
   Include the crash report in the issue in a [code block](https://gitlab.com/help/user/markdown#code-and-syntax-highlighting),
   a file attachment,
   or put it in a [snippet](https://gitlab.com/dashboard/snippets) and provide the link to that snippet.
@@ -93,10 +88,10 @@ If you're providing snippets in the issue,
 
 Provide more context by answering these questions:
 
-* *Did the problem start happening recently,* (for example, after updating to a new version of Rust-FlightPlan), or was this always a problem?
-* If the problem started happening recently, *can you reproduce the problem in an older version of Rust-FlightPlan?*
+* *Did the problem start happening recently,* (for example, after updating to a new version of Blaustein LED), or was this always a problem?
+* If the problem started happening recently, *can you reproduce the problem in an older version of Blaustein LED?*
   What is the most recent version in which the problem doesn't happen?
-  You can download older versions of Rust-FlightPlan from the release's directory.
+  You can download older versions of Blaustein LED from the release's directory.
 * *Can you reliably reproduce the issue?*
   If not, provide details about how often the problem happens and under which conditions it normally happens.
 * If the problem is related to working with files (for example, opening and editing files), *does the problem happen for all files and projects or only some?* Is there anything special about the files you're using?
@@ -104,26 +99,22 @@ Provide more context by answering these questions:
 
 Include details about your configuration and environment:
 
-* *Which version of Rust-FlightPlan are you using?*
+* *Which version of Blaustein LED are you using?*
 * *What is the name and version of the OS you're using?*
-* *Are you running Rust-FlightPlan in a virtual machine or a container?*
+* *Are you running Blaustein LED in a virtual machine or a container?*
   If so, which VM/Container software are you using,
   and what operating systems and versions are used for the host and the guest?
 
 
 ### Suggesting Enhancements
 
-This section guides you through submitting an enhancement suggestion for Rust-FlightPlan, including completely new features and minor improvements to existing functionality.
+This section guides you through submitting an enhancement suggestion for Blaustein LED, including completely new features and minor improvements to existing functionality.
 Following these guidelines helps maintainers and the community to understand your suggestion and find related suggestions.
 
 Before creating enhancement suggestions,
 check [this list](#before-submitting-an-enhancement-suggestion) as you might find out that you don't need to create one.
 When you're creating an enhancement suggestion,
 [include as many details as possible](#how-do-i-submit-a-good-enhancement-suggestion).
-Fill in [the template](.gitlab/issue_templates/Feature.md),
-including the steps that you imagine you would take if the feature you're requesting existed.
-You can likewise submit a new (feature-)issue
-by sending it to [contact-project+flightsimtools-r-fst-r-fp-55242696-issue-@incoming.gitlab.com](mailto:contact-project+flightsimtools-r-fst-r-fp-55242696-issue-@incoming.gitlab.com).
 
 
 #### Before Submitting An Enhancement Suggestion
@@ -146,14 +137,14 @@ Enhancement suggestions are tracked as Issues. Create an issue and provide the f
 * as [Markdown code blocks](https://gitlab.com/help/user/markdown#code-and-syntax-highlighting).
 * *Describe the current behavior* and *explain which behavior you expected to see instead* and why.
 * *Include screenshots and animated GIFs* which help you demonstrate the steps or point out the part which the suggestion is related to.
-* *Explain why this enhancement would be useful* to most Rust-FlightPlan users.
-* *Specify which version of Rust-FlightPlan you're using.*
+* *Explain why this enhancement would be useful* to most Blaustein LED users.
+* *Specify which version of Blaustein LED you're using.*
 * *Specify the name and version of the OS you're using.*
 
 
 ### Your First Code Contribution
 
-Unsure where to begin contributing to Rust-FlightPlan? You can start by looking through these `beginner` and `help-wanted` issues:
+Unsure where to begin contributing to Blaustein LED? You can start by looking through these `beginner` and `help-wanted` issues:
 
 * *Beginner issues* – issues which should only require a few lines of code, and a test or two.
 * *Help wanted issues* – issues which should be a bit more involved than `beginner` issues.

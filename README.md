@@ -1,7 +1,7 @@
-# Rust-FlightPlan
+# Blaustein LED
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
-[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-v2.1%20adopted-ff69b4.svg?style=flat-square)](CODE_OF_CONDUCT.adoc)
+[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-v3.0%20adopted-ff69b4.svg?style=flat-square)](CODE_OF_CONDUCT.md)
 
 ## Table Of Contents
 
@@ -13,15 +13,15 @@
 
 ## Description
 
-_Rust-FlightPlan_ is a library that loads and decodes a SimBrief flight plan to a Rust-readable format.
+_Blaustein LED_ is a small programm for the Raspberry Pi Pico 2 that turns on the LEDs inside Burg Blaustein when the button is pressed.
 
 ## Current Release Version
 
-v1.1.1
+vx.x.x
 
 ## License
 
-Rust-FlightPlan is licensed under the MIT License.
+Blaustein LED is licensed under the MIT License.
 You can find the license text under [LICENSE](LICENSE).
 
 For more information about this license,
@@ -29,7 +29,7 @@ visit [https://choosealicense.com/licenses/mit/](https://choosealicense.com/lice
 
 ## Contribution
 
-- You can find the source code under [https://gitlab.com/flightsimtools/r-fst/r-fp](https://gitlab.com/flightsimtools/r-fst/r-fp).
+- You can find the source code under [https://github.com/greluc/blaustein-led](https://github.com/greluc/blaustein-led).
 - Read [CONTRIBUTING](CONTRIBUTING.md) when you wish to contribute to this project.
 - Note that this project is subject to a Contributor [CODE OF CONDUCT](CODE_OF_CONDUCT.md).
   By participating in this project, you agree to abide by its terms.
