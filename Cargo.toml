@@ -1,7 +1,22 @@
 [package]
 name = "blaustein-led"
-version = "0.1.0"
+version = "0.0.1"
+authors = ["Lucas Greuloch (greluc) <lucas.greuloch@pm.me>"]
+description = "Controls the LEDs of Burg Blaustein."
+keywords = ["led", "embedded"]
+categories = ["embedded"]
+homepage = "https://github.com/greluc/blaustein-led"
+repository = "https://github.com/greluc/blaustein-led"
+license = "MIT"
+readme = "README.md"
 edition = "2024"
+#exclude = [
+#    ".gitlab/*",
+#    "config/*",
+#    "data/*",
+#    "res/*",
+#    ".gitlab-ci.yml",
+#]
 
 [dependencies]
 embassy-executor = { version = "0.9.1", features = [
@@ -23,3 +38,17 @@ cortex-m-rt = "0.7.5"
 
 defmt = "1.0.1"
 defmt-rtt = "1.1.0"
+
+[[bin]]
+name = "blaustein-led"
+path = "src/main.rs"
+test = false
+bench = false
+doctest = false
+
+[profile.release]
+opt-level = 3
+lto = true
+incremental = true
+codegen-units = 1
+strip = "symbols"
