@@ -30,7 +30,7 @@ async fn main(spawner: Spawner) {
         .unwrap();
 }
 
-/// Demonstrate PWM by setting duty cycle
+/// Demonstrates PWM by setting a duty cycle.
 ///
 /// Using GP25 in Slice4, make sure to use an appropriate resistor.
 #[embassy_executor::task]

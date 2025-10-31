@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * n/a
 
-## [1.0.0](https://gitlab.com/flightsimtools/r-fst/r-fp/-/releases/v1.0.0) – 2024-07-19
+## [1.0.0](https://gitlab.com/flightsimtools/r-fst/r-fp/-/releases/v1.0.0) – 202x-xx-xx
 
 ### Added
 
