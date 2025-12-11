@@ -4,7 +4,7 @@
 use defmt::*;
 use embassy_executor::Spawner;
 use embassy_rp::Peri;
-use embassy_rp::peripherals::{PIN_25, PWM_SLICE4};
+use embassy_rp::peripherals::{PIN_16, PWM_SLICE0};
 use embassy_rp::pwm::{Config, Pwm, SetDutyCycle};
 use embassy_time::Timer;
 use {defmt_rtt as _, panic_probe as _};
@@ -14,9 +14,9 @@ use {defmt_rtt as _, panic_probe as _};
 #[unsafe(link_section = ".bi_entries")]
 #[used]
 pub static PICOTOOL_ENTRIES: [embassy_rp::binary_info::EntryAddr; 4] = [
-    embassy_rp::binary_info::rp_program_name!(c"Blinky Example"),
+    embassy_rp::binary_info::rp_program_name!(c"Blaustein Fire LED"),
     embassy_rp::binary_info::rp_program_description!(
-        c"This example tests the RP Pico on board LED, connected to gpio 25"
+        c"Smooth, configurable campfire flicker on GPIO 25 using PWM"
     ),
     embassy_rp::binary_info::rp_cargo_version!(),
     embassy_rp::binary_info::rp_program_build_attribute!(),
@@ -26,87 +26,160 @@ pub static PICOTOOL_ENTRIES: [embassy_rp::binary_info::EntryAddr; 4] = [
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
     spawner
-        .spawn(pwm_set_dutycycle(p.PWM_SLICE4, p.PIN_25))
+        .spawn(fire_led_task(p.PWM_SLICE0, p.PIN_16, FireConfig {
+            max_intensity: 64,
+            jitter_max: 25,
+            pulse_prob: 64,
+            ..FireConfig::default()
+        }))
         .unwrap();
 }
 
-/// Demonstrates PWM by setting a duty cycle.
+/// Fire effect configuration parameters.
 ///
-/// Using GP25 in Slice4, make sure to use an appropriate resistor.
+/// These parameters shape the "look & feel" of the LED flame.
+/// All values are integer and no-std friendly. Adjust to taste.
+#[derive(Clone, Copy)]
+pub struct FireConfig {
+    /// PWM target frequency (Hz). 20-30 kHz keeps flicker invisible.
+    pub pwm_freq_hz: u32,
+    /// Integer clock divider. Use the smallest value that keeps `top` within u16.
+    pub pwm_divider: u8,
+    /// Minimum and maximum base intensity (0..=255).
+    pub min_intensity: u8,
+    pub max_intensity: u8,
+    /// Full breath period in milliseconds (one up+down cycle).
+    pub breath_period_ms: u32,
+    /// Random per-tick jitter amplitude added around the base (0..=64 typical).
+    pub jitter_max: u8,
+    /// Probability (0..=255) to start a short flare on a tick. ~3 = ~1% at 15ms.
+    pub pulse_prob: u8,
+    /// Pulse strength added to intensity when a flare triggers.
+    pub pulse_boost: u8,
+    /// Q8 decay factor per tick for pulses (0..=255). 224≈fast, 248≈slower.
+    pub pulse_decay_q8: u8,
+    /// Q8 smoothing factor per tick for the output EMA. Smaller = smoother.
+    /// new = old + ((target-old)*smooth_q8 >> 8)
+    pub smooth_q8: u8,
+    /// Update interval in milliseconds.
+    pub tick_ms: u32,
+}
+
+impl Default for FireConfig {
+    fn default() -> Self {
+        Self {
+            pwm_freq_hz: 25_000,
+            pwm_divider: 1,
+            min_intensity: 20,
+            max_intensity: 255,
+            breath_period_ms: 3_500,
+            jitter_max: 18,
+            pulse_prob: 3,
+            pulse_boost: 40,
+            pulse_decay_q8: 232,  // ~150ms half-life at 15ms tick
+            smooth_q8: 20,        // output reacts in a few hundred ms
+            tick_ms: 15,
+        }
+    }
+}
+
+/// Task that generates a smooth, warm campfire effect on GPIO 16 using PWM.
+///
+/// Uses only integer math, no_alloc, and runs entirely async on Embassy.
 #[embassy_executor::task]
-async fn pwm_set_dutycycle(slice4: Peri<'static, PWM_SLICE4>, pin25: Peri<'static, PIN_25>) {
-    let desired_freq_hz = 25_000;
-    let divider = 16u8;
-
+async fn fire_led_task(
+    slice0: Peri<'static, PWM_SLICE0>,
+    pin16: Peri<'static, PIN_16>,
+    cfg: FireConfig,
+) {
     let mut c = Config::default();
-    c.top = calculate_top(desired_freq_hz, divider);
-    c.divider = divider.into();
+    c.top = calculate_top(cfg.pwm_freq_hz, cfg.pwm_divider);
+    c.divider = cfg.pwm_divider.into();
 
-    let mut pwm = Pwm::new_output_b(slice4, pin25, c.clone());
+    // Channel B is GPIO 25 on RP235x.
+    let mut pwm = Pwm::new_output_a(slice0, pin16, c.clone());
+
+    // PRNG state (Xorshift32) and flicker state.
+    let mut rng: u32 = 0xC0FFEE01;
+    let mut phase_ms: u32 = 0; // position within the breath cycle
+    let half_period = core::cmp::max(1, cfg.breath_period_ms / 2);
+    let mut out_q8: i32 = (cfg.min_intensity as i32) << 8; // smoothed output, Q8
+    let mut pulse: i32 = 0; // current pulse boost, integer
 
     loop {
-        // 100% duty cycle, fully on
-        pwm.set_duty_cycle_fully_on().unwrap();
-        Timer::after_millis(100).await;
+        // --- base triangular "breathing" envelope ---
+        phase_ms += cfg.tick_ms;
+        if phase_ms >= cfg.breath_period_ms {
+            phase_ms -= cfg.breath_period_ms;
+        }
+        let up = phase_ms < half_period;
+        let pos = if up { phase_ms } else { cfg.breath_period_ms - phase_ms };
+        let span = (cfg.max_intensity as i32 - cfg.min_intensity as i32) as i32;
+        // base = min + span * (pos / half_period)
+        let base = cfg.min_intensity as i32
+            + ((span as i64 * (pos as i64) * 2 / (cfg.breath_period_ms as i64)) as i32);
 
-        // 66% duty cycle. Expressed as a percentage.
-        pwm.set_duty_cycle_percent(66).unwrap();
-        Timer::after_millis(100).await;
+        // --- random jitter around base ---
+        rng = xorshift32(rng);
+        let jitter_range = cfg.jitter_max as i32;
+        let jitter = ((rng as u8) as i32 % (2 * jitter_range + 1)) - jitter_range;
 
-        // 25% duty cycle. Expressed as 32768/4 = 8192.
-        pwm.set_duty_cycle(c.top / 4).unwrap();
-        Timer::after_millis(100).await;
+        // --- sporadic short pulses (flames licking higher) ---
+        rng = xorshift32(rng);
+        if (rng as u8) < cfg.pulse_prob {
+            pulse += cfg.pulse_boost as i32;
+        }
+        // Exponential-like decay in Q8 domain
+        pulse = (pulse * (cfg.pulse_decay_q8 as i32)) >> 8;
 
-        // 0% duty cycle, fully off.
-        pwm.set_duty_cycle_fully_off().unwrap();
-        Timer::after_millis(100).await;
+        // Combine and clamp target intensity to 0..255
+        let mut target = base + jitter + pulse;
+        if target < 0 {
+            target = 0;
+        } else if target > 255 {
+            target = 255;
+        }
+
+        // --- smooth the output ---
+        let target_q8 = target << 8;
+        out_q8 += ((target_q8 - out_q8) * (cfg.smooth_q8 as i32)) >> 8;
+
+        // Map 0..255 (from Q8) through gamma≈2 curve to PWM duty counts
+        let intensity = (out_q8 >> 8) as u8;
+        let duty = gamma2_map_to_top(intensity, c.top);
+        // Apply PWM duty (errors are infallible for RP PWM)
+        let _ = pwm.set_duty_cycle(duty);
+
+        Timer::after_millis(cfg.tick_ms as u64).await;
     }
+}
+
+/// Simple Xorshift32 PRNG: fast, small, good enough for flicker.
+#[inline]
+fn xorshift32(mut x: u32) -> u32 {
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
+    x
+}
+
+/// Map 0..=255 intensity to PWM counts in 0..=top using an approximate
+/// gamma 2.0 curve for more natural perceived brightness.
+#[inline]
+fn gamma2_map_to_top(intensity: u8, top: u16) -> u16 {
+    let i = intensity as u32;
+    let y = i * i; // 0..65025
+    // duty = round((y / 255^2) * top)
+    (((y * (top as u32)) + 32) / 65025) as u16
 }
 
 /// Calculates the PWM timer top value based on the desired frequency and clock divider.
 ///
-/// This function determines the top value of the PWM timer based on the
-/// desired frequency (in Hz) and the divider value. The top value defines
-/// the period of the PWM cycle, with the counter incrementing from 0 to
-/// the top value before wrapping around to 0. The duration of one PWM cycle
-/// is determined by this behavior.
-///
-/// # Arguments
-///
-/// * `desired_freq_hz` - The target frequency for the PWM (in Hz).
-/// * `divider` - The clock divider applied to the timer.
-///
-/// # Returns
-///
-/// * `u16` - The calculated top value for the PWM timer.
-///
-/// # Calculation
-///
-/// The calculation uses the system clock frequency and computes the desired
-/// timer period as follows:
-///
-/// ```text
-/// period = CLK_SYS_FREQ / (desired_freq_hz * divider) - 1
-/// ```
-/// Where `CLK_SYS_FREQ` is the system clock frequency retrieved using
-/// `embassy_rp::clocks::clk_sys_freq()`.
-///
-/// # Example
-///
-/// ```rust
-/// let desired_frequency = 1000; // Target frequency in Hz
-/// let divider = 4; // Clock divider
-/// let top_value = calculate_top(desired_frequency, divider);
-/// println!("The calculated top value is: {}", top_value);
-/// ```
-///
-/// # Notes
-///
-/// - Ensure the desired frequency and divider values are valid and lead
-///   to a feasible top value within the range of a `u16`.
-/// - The function assumes that `clk_sys_freq` returns the correct system
-///   clock frequency in Hz.
+/// See notes: choose a small divider (often 1) to maximize duty resolution at a given
+/// PWM frequency, while keeping `top` within u16.
 fn calculate_top(desired_freq_hz: u32, divider: u8) -> u16 {
     let clock_freq_hz = embassy_rp::clocks::clk_sys_freq();
-    (clock_freq_hz / (desired_freq_hz * divider as u32)) as u16 - 1
+    let period_counts = clock_freq_hz / (desired_freq_hz * divider as u32);
+    let period_counts = core::cmp::min(period_counts, u16::MAX as u32) as u16;
+    core::cmp::max(1, period_counts) - 1
 }
