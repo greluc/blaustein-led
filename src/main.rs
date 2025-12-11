@@ -125,7 +125,7 @@ struct FireState {
 
 impl FireState {
     fn new(cfg: FireConfig, seed: u32) -> Self {
-        let span_i32 = (cfg.max_intensity as i32 - cfg.min_intensity as i32) as i32;
+        let span_i32 = cfg.max_intensity as i32 - cfg.min_intensity as i32;
         // step per millisecond in Q8: 2*span / period
         let step_q8 = (((span_i32 as i64) << 9) / (cfg.breath_period_ms as i64)) as i32;
         let min_q8 = (cfg.min_intensity as i32) << 8;
@@ -258,7 +258,7 @@ async fn fire_task_slice1(
         let intensity = sim.update();
         
         // Single channel update
-        pwm.set_duty_cycle(lut[intensity as usize]);
+        pwm.set_duty_cycle(lut[intensity as usize]).expect("TODO: panic message");
         
         Timer::after_millis(cfg.tick_ms as u64).await;
     }
