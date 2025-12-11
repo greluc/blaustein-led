@@ -1,13 +1,15 @@
 #![no_std]
 #![no_main]
 
-use defmt::*;
 use embassy_executor::Spawner;
 use embassy_rp::Peri;
 use embassy_rp::peripherals::{PIN_16, PWM_SLICE0};
 use embassy_rp::pwm::{Config, Pwm, SetDutyCycle};
 use embassy_time::Timer;
-use {defmt_rtt as _, panic_probe as _};
+// Always include a panic handler; in debug builds we also enable defmt RTT logging.
+#[cfg(feature = "debug")]
+use defmt_rtt as _;
+use panic_probe as _;
 
 // Program metadata for `picotool info`.
 // This isn't needed, but it's recommended to have these minimal entries.
@@ -95,34 +97,55 @@ async fn fire_led_task(
     let mut c = Config::default();
     c.top = calculate_top(cfg.pwm_freq_hz, cfg.pwm_divider);
     c.divider = cfg.pwm_divider.into();
+    let top_counts = c.top;
 
-    // Channel B is GPIO 25 on RP235x.
-    let mut pwm = Pwm::new_output_a(slice0, pin16, c.clone());
+    // Channel A is GPIO 16 on RP235x.
+    let mut pwm = Pwm::new_output_a(slice0, pin16, c);
+
+    // Precompute gamma≈2 duty lookup to avoid per-tick division.
+    let mut duty_lut = [0u16; 256];
+    for i in 0..=255 {
+        let y = (i as u32) * (i as u32); // 0..65025
+        duty_lut[i as usize] = (((y * (top_counts as u32)) + 32) / 65025) as u16;
+    }
 
     // PRNG state (Xorshift32) and flicker state.
     let mut rng: u32 = 0xC0FFEE01;
-    let mut phase_ms: u32 = 0; // position within the breath cycle
-    let half_period = core::cmp::max(1, cfg.breath_period_ms / 2);
+    // Triangular "breathing" envelope using fixed-point incremental ramp (Q8).
+    let span_i32 = (cfg.max_intensity as i32 - cfg.min_intensity as i32) as i32;
+    // step per millisecond in Q8: 2*span / period
+    let step_q8: i32 = (((span_i32 as i64) << 9) / (cfg.breath_period_ms as i64)) as i32;
+    let mut base_q8: i32 = (cfg.min_intensity as i32) << 8; // start at min
+    let max_q8: i32 = (cfg.max_intensity as i32) << 8;
+    let min_q8: i32 = (cfg.min_intensity as i32) << 8;
+    let mut rising = true;
+
     let mut out_q8: i32 = (cfg.min_intensity as i32) << 8; // smoothed output, Q8
     let mut pulse: i32 = 0; // current pulse boost, integer
 
     loop {
-        // --- base triangular "breathing" envelope ---
-        phase_ms += cfg.tick_ms;
-        if phase_ms >= cfg.breath_period_ms {
-            phase_ms -= cfg.breath_period_ms;
+        // --- base triangular "breathing" envelope (incremental, no div in loop) ---
+        if rising {
+            base_q8 += step_q8 * (cfg.tick_ms as i32);
+            if base_q8 >= max_q8 {
+                base_q8 = max_q8;
+                rising = false;
+            }
+        } else {
+            base_q8 -= step_q8 * (cfg.tick_ms as i32);
+            if base_q8 <= min_q8 {
+                base_q8 = min_q8;
+                rising = true;
+            }
         }
-        let up = phase_ms < half_period;
-        let pos = if up { phase_ms } else { cfg.breath_period_ms - phase_ms };
-        let span = (cfg.max_intensity as i32 - cfg.min_intensity as i32) as i32;
-        // base = min + span * (pos / half_period)
-        let base = cfg.min_intensity as i32
-            + ((span as i64 * (pos as i64) * 2 / (cfg.breath_period_ms as i64)) as i32);
+        let base = base_q8 >> 8;
 
         // --- random jitter around base ---
         rng = xorshift32(rng);
         let jitter_range = cfg.jitter_max as i32;
-        let jitter = ((rng as u8) as i32 % (2 * jitter_range + 1)) - jitter_range;
+        // Scale signed 8-bit noise to approximately [-jitter_max, +jitter_max] without modulo.
+        let n = (rng as u8 as i16) - 128; // -128..127
+        let jitter = ((n as i32 * (2 * jitter_range + 1)) >> 8);
 
         // --- sporadic short pulses (flames licking higher) ---
         rng = xorshift32(rng);
@@ -146,7 +169,7 @@ async fn fire_led_task(
 
         // Map 0..255 (from Q8) through gamma≈2 curve to PWM duty counts
         let intensity = (out_q8 >> 8) as u8;
-        let duty = gamma2_map_to_top(intensity, c.top);
+        let duty = duty_lut[intensity as usize];
         // Apply PWM duty (errors are infallible for RP PWM)
         let _ = pwm.set_duty_cycle(duty);
 
