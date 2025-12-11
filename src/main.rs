@@ -28,12 +28,17 @@ pub static PICOTOOL_ENTRIES: [embassy_rp::binary_info::EntryAddr; 4] = [
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
     spawner
-        .spawn(fire_led_task(p.PWM_SLICE0, p.PIN_16, FireConfig {
-            max_intensity: 64,
-            jitter_max: 25,
-            pulse_prob: 64,
-            ..FireConfig::default()
-        }))
+        .spawn(fire_led_task(
+            p.PWM_SLICE0,
+            p.PIN_16,
+            FireConfig {
+                max_intensity: 128,
+                jitter_max: 25,
+                pulse_prob: 48,
+                breath_period_ms: 5000,
+                ..FireConfig::default()
+            },
+        ))
         .unwrap();
 }
 
@@ -78,8 +83,8 @@ impl Default for FireConfig {
             jitter_max: 18,
             pulse_prob: 3,
             pulse_boost: 40,
-            pulse_decay_q8: 232,  // ~150ms half-life at 15ms tick
-            smooth_q8: 20,        // output reacts in a few hundred ms
+            pulse_decay_q8: 232, // ~150ms half-life at 15ms tick
+            smooth_q8: 20,       // output reacts in a few hundred ms
             tick_ms: 15,
         }
     }
@@ -145,7 +150,7 @@ async fn fire_led_task(
         let jitter_range = cfg.jitter_max as i32;
         // Scale signed 8-bit noise to approximately [-jitter_max, +jitter_max] without modulo.
         let n = (rng as u8 as i16) - 128; // -128..127
-        let jitter = ((n as i32 * (2 * jitter_range + 1)) >> 8);
+        let jitter = (n as i32 * (2 * jitter_range + 1)) >> 8;
 
         // --- sporadic short pulses (flames licking higher) ---
         rng = xorshift32(rng);
@@ -184,16 +189,6 @@ fn xorshift32(mut x: u32) -> u32 {
     x ^= x >> 17;
     x ^= x << 5;
     x
-}
-
-/// Map 0..=255 intensity to PWM counts in 0..=top using an approximate
-/// gamma 2.0 curve for more natural perceived brightness.
-#[inline]
-fn gamma2_map_to_top(intensity: u8, top: u16) -> u16 {
-    let i = intensity as u32;
-    let y = i * i; // 0..65025
-    // duty = round((y / 255^2) * top)
-    (((y * (top as u32)) + 32) / 65025) as u16
 }
 
 /// Calculates the PWM timer top value based on the desired frequency and clock divider.
