@@ -3,9 +3,10 @@
 
 use embassy_executor::Spawner;
 use embassy_rp::Peri;
-use embassy_rp::peripherals::{PIN_16, PWM_SLICE0};
+use embassy_rp::peripherals::{PIN_16, PIN_17, PIN_18, PWM_SLICE0, PWM_SLICE1};
 use embassy_rp::pwm::{Config, Pwm, SetDutyCycle};
 use embassy_time::Timer;
+
 // Always include a panic handler; in debug builds we also enable defmt RTT logging.
 #[cfg(feature = "debug")]
 use defmt_rtt as _;
@@ -27,17 +28,33 @@ pub static PICOTOOL_ENTRIES: [embassy_rp::binary_info::EntryAddr; 4] = [
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
+
+    // Common configuration for the fire effect
+    let cfg = FireConfig {
+        max_intensity: 128,
+        jitter_max: 25,
+        pulse_prob: 48,
+        breath_period_ms: 5000,
+        ..FireConfig::default()
+    };
+
+    // Slice 0 controls PIN_16 (Channel A) and PIN_17 (Channel B)
+    // We spawn a task that updates both channels independently.
     spawner
-        .spawn(fire_led_task(
+        .spawn(fire_task_slice0(
             p.PWM_SLICE0,
             p.PIN_16,
-            FireConfig {
-                max_intensity: 128,
-                jitter_max: 25,
-                pulse_prob: 48,
-                breath_period_ms: 5000,
-                ..FireConfig::default()
-            },
+            p.PIN_17,
+            cfg,
+        ))
+        .unwrap();
+
+    // Slice 1 controls PIN_18 (Channel A)
+    spawner
+        .spawn(fire_task_slice1(
+            p.PWM_SLICE1,
+            p.PIN_18,
+            cfg,
         ))
         .unwrap();
 }
@@ -90,78 +107,78 @@ impl Default for FireConfig {
     }
 }
 
-/// Task that generates a smooth, warm campfire effect on GPIO 16 using PWM.
-///
-/// Uses only integer math, no_alloc, and runs entirely async on Embassy.
-#[embassy_executor::task]
-async fn fire_led_task(
-    slice0: Peri<'static, PWM_SLICE0>,
-    pin16: Peri<'static, PIN_16>,
+/// Encapsulates the state of a single fire effect simulation.
+/// Allows multiple independent fire effects (LEDs) to run side-by-side.
+struct FireState {
+    rng: u32,
+    base_q8: i32,
+    rising: bool,
+    out_q8: i32,
+    pulse: i32,
     cfg: FireConfig,
-) {
-    let mut c = Config::default();
-    c.top = calculate_top(cfg.pwm_freq_hz, cfg.pwm_divider);
-    c.divider = cfg.pwm_divider.into();
-    let top_counts = c.top;
+    // Precomputed derived values
+    step_q8: i32,
+    max_q8: i32,
+    min_q8: i32,
+    jitter_range: i32,
+}
 
-    // Channel A is GPIO 16 on RP235x.
-    let mut pwm = Pwm::new_output_a(slice0, pin16, c);
-
-    // Precompute gamma≈2 duty lookup to avoid per-tick division.
-    let mut duty_lut = [0u16; 256];
-    for i in 0..=255 {
-        let y = (i as u32) * (i as u32); // 0..65025
-        duty_lut[i as usize] = (((y * (top_counts as u32)) + 32) / 65025) as u16;
+impl FireState {
+    fn new(cfg: FireConfig, seed: u32) -> Self {
+        let span_i32 = (cfg.max_intensity as i32 - cfg.min_intensity as i32) as i32;
+        // step per millisecond in Q8: 2*span / period
+        let step_q8 = (((span_i32 as i64) << 9) / (cfg.breath_period_ms as i64)) as i32;
+        let min_q8 = (cfg.min_intensity as i32) << 8;
+        let max_q8 = (cfg.max_intensity as i32) << 8;
+        
+        Self {
+            rng: seed,
+            base_q8: min_q8,
+            rising: true,
+            out_q8: min_q8,
+            pulse: 0,
+            cfg,
+            step_q8,
+            max_q8,
+            min_q8,
+            jitter_range: cfg.jitter_max as i32,
+        }
     }
 
-    // PRNG state (Xorshift32) and flicker state.
-    let mut rng: u32 = 0xC0FFEE01;
-    // Triangular "breathing" envelope using fixed-point incremental ramp (Q8).
-    let span_i32 = (cfg.max_intensity as i32 - cfg.min_intensity as i32) as i32;
-    // step per millisecond in Q8: 2*span / period
-    let step_q8: i32 = (((span_i32 as i64) << 9) / (cfg.breath_period_ms as i64)) as i32;
-    let mut base_q8: i32 = (cfg.min_intensity as i32) << 8; // start at min
-    let max_q8: i32 = (cfg.max_intensity as i32) << 8;
-    let min_q8: i32 = (cfg.min_intensity as i32) << 8;
-    let mut rising = true;
-
-    let mut out_q8: i32 = (cfg.min_intensity as i32) << 8; // smoothed output, Q8
-    let mut pulse: i32 = 0; // current pulse boost, integer
-
-    loop {
-        // --- base triangular "breathing" envelope (incremental, no div in loop) ---
-        if rising {
-            base_q8 += step_q8 * (cfg.tick_ms as i32);
-            if base_q8 >= max_q8 {
-                base_q8 = max_q8;
-                rising = false;
+    /// Advances the simulation by one tick and returns the new intensity (0..=255).
+    fn update(&mut self) -> u8 {
+        // --- base triangular "breathing" envelope ---
+        if self.rising {
+            self.base_q8 += self.step_q8 * (self.cfg.tick_ms as i32);
+            if self.base_q8 >= self.max_q8 {
+                self.base_q8 = self.max_q8;
+                self.rising = false;
             }
         } else {
-            base_q8 -= step_q8 * (cfg.tick_ms as i32);
-            if base_q8 <= min_q8 {
-                base_q8 = min_q8;
-                rising = true;
+            self.base_q8 -= self.step_q8 * (self.cfg.tick_ms as i32);
+            if self.base_q8 <= self.min_q8 {
+                self.base_q8 = self.min_q8;
+                self.rising = true;
             }
         }
-        let base = base_q8 >> 8;
+        let base = self.base_q8 >> 8;
 
         // --- random jitter around base ---
-        rng = xorshift32(rng);
-        let jitter_range = cfg.jitter_max as i32;
-        // Scale signed 8-bit noise to approximately [-jitter_max, +jitter_max] without modulo.
-        let n = (rng as u8 as i16) - 128; // -128..127
-        let jitter = (n as i32 * (2 * jitter_range + 1)) >> 8;
+        self.rng = xorshift32(self.rng);
+        // Scale signed 8-bit noise to approximately [-jitter_max, +jitter_max]
+        let n = (self.rng as u8 as i16) - 128; // -128..127
+        let jitter = (n as i32 * (2 * self.jitter_range + 1)) >> 8;
 
-        // --- sporadic short pulses (flames licking higher) ---
-        rng = xorshift32(rng);
-        if (rng as u8) < cfg.pulse_prob {
-            pulse += cfg.pulse_boost as i32;
+        // --- sporadic short pulses ---
+        self.rng = xorshift32(self.rng);
+        if (self.rng as u8) < self.cfg.pulse_prob {
+            self.pulse += self.cfg.pulse_boost as i32;
         }
-        // Exponential-like decay in Q8 domain
-        pulse = (pulse * (cfg.pulse_decay_q8 as i32)) >> 8;
+        // Exponential-like decay
+        self.pulse = (self.pulse * (self.cfg.pulse_decay_q8 as i32)) >> 8;
 
         // Combine and clamp target intensity to 0..255
-        let mut target = base + jitter + pulse;
+        let mut target = base + jitter + self.pulse;
         if target < 0 {
             target = 0;
         } else if target > 255 {
@@ -170,14 +187,79 @@ async fn fire_led_task(
 
         // --- smooth the output ---
         let target_q8 = target << 8;
-        out_q8 += ((target_q8 - out_q8) * (cfg.smooth_q8 as i32)) >> 8;
+        self.out_q8 += ((target_q8 - self.out_q8) * (self.cfg.smooth_q8 as i32)) >> 8;
 
-        // Map 0..255 (from Q8) through gamma≈2 curve to PWM duty counts
-        let intensity = (out_q8 >> 8) as u8;
-        let duty = duty_lut[intensity as usize];
-        // Apply PWM duty (errors are infallible for RP PWM)
-        let _ = pwm.set_duty_cycle(duty);
+        (self.out_q8 >> 8) as u8
+    }
+}
 
+/// Helper to create a gamma-corrected duty cycle lookup table.
+fn create_lut(top_counts: u16) -> [u16; 256] {
+    let mut duty_lut = [0u16; 256];
+    for i in 0..=255 {
+        let y = (i as u32) * (i as u32); // 0..65025
+        duty_lut[i as usize] = (((y * (top_counts as u32)) + 32) / 65025) as u16;
+    }
+    duty_lut
+}
+
+/// Task that generates a smooth, warm campfire effect on Slice 0 (GPIO 16 & 17).
+#[embassy_executor::task]
+async fn fire_task_slice0(
+    slice: Peri<'static, PWM_SLICE0>,
+    pin_a: Peri<'static, PIN_16>,
+    pin_b: Peri<'static, PIN_17>,
+    cfg: FireConfig,
+) {
+    let mut c = Config::default();
+    c.top = calculate_top(cfg.pwm_freq_hz, cfg.pwm_divider);
+    c.divider = cfg.pwm_divider.into();
+    let top = c.top;
+
+    let mut pwm = Pwm::new_output_ab(slice, pin_a, pin_b, c.clone());
+    let lut = create_lut(top);
+    
+    // Initialize two fire simulators with different seeds so they don't flicker in sync.
+    let mut sim_a = FireState::new(cfg, 0xC0FFEE01);
+    let mut sim_b = FireState::new(cfg, 0x12345678);
+
+    loop {
+        let int_a = sim_a.update();
+        let int_b = sim_b.update();
+        
+        // Update both channels
+        c.compare_a = lut[int_a as usize];
+        c.compare_b = lut[int_b as usize];
+        pwm.set_config(&c);
+        
+        Timer::after_millis(cfg.tick_ms as u64).await;
+    }
+}
+
+/// Task that generates a smooth, warm campfire effect on Slice 1 (GPIO 18).
+#[embassy_executor::task]
+async fn fire_task_slice1(
+    slice: Peri<'static, PWM_SLICE1>,
+    pin_a: Peri<'static, PIN_18>,
+    cfg: FireConfig,
+) {
+    let mut c = Config::default();
+    c.top = calculate_top(cfg.pwm_freq_hz, cfg.pwm_divider);
+    c.divider = cfg.pwm_divider.into();
+    let top = c.top;
+
+    let mut pwm = Pwm::new_output_a(slice, pin_a, c.clone());
+    let lut = create_lut(top);
+    
+    // Use a third unique seed
+    let mut sim = FireState::new(cfg, 0xDEADBEEF);
+
+    loop {
+        let intensity = sim.update();
+        
+        // Single channel update
+        pwm.set_duty_cycle(lut[intensity as usize]);
+        
         Timer::after_millis(cfg.tick_ms as u64).await;
     }
 }
