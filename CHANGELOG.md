@@ -9,10 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Update release link in CHANGELOG.md.
 - Update dependencies.
 
 
-## [1.0.0](https://gitlab.com/flightsimtools/r-fst/r-fp/-/releases/v1.0.0) – 2025-12-11
+## [1.0.0](https://github.com/greluc/blaustein-led/releases/tag/v1.0.0) – 2025-12-11
 
 ### Added
 
