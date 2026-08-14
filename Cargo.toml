@@ -1,6 +1,6 @@
 [package]
 name = "blaustein-led"
-version = "0.0.1"
+version = "1.0.0"
 authors = ["Lucas Greuloch (greluc) <lucas.greuloch@pm.me>"]
 description = "Controls the LEDs of Burg Blaustein."
 keywords = ["led", "embedded"]
@@ -10,6 +10,8 @@ repository = "https://github.com/greluc/blaustein-led"
 license = "MIT"
 readme = "README.md"
 edition = "2024"
+# Matches the requirement of edition 2024 and of cortex-m / cortex-m-rt.
+rust-version = "1.85"
 #exclude = [
 #    ".gitlab/*",
 #    "config/*",
@@ -19,34 +21,44 @@ edition = "2024"
 #]
 
 [features]
-# Default build contains no defmt stack to minimize size and overhead.
+# Default build contains no defmt stack to minimize size and overhead. It uses a
+# panic handler that resets the chip, so the unattended installation recovers by
+# itself.
 default = []
 # Enable this feature to include defmt logging and RTT transport, and to turn on
-# defmt features in Embassy crates. Useful for development/debug builds.
+# defmt features in Embassy crates. Also switches to the `panic-probe` handler,
+# which halts on panic so an attached debugger can inspect the fault.
+# Build with the `release-debug` profile so the symbol table defmt needs survives.
 debug = [
     "dep:defmt",
     "dep:defmt-rtt",
+    "dep:panic-probe",
     "embassy-executor/defmt",
     "embassy-rp/defmt",
+    "embassy-time/defmt",
     "panic-probe/print-defmt",
 ]
 
 [dependencies]
-embassy-executor = { version = "0.9.1", features = [
-    "arch-cortex-m",
+embassy-executor = { version = "0.10.0", features = [
+    "platform-cortex-m",
     "executor-thread",
 ] }
-panic-probe = { version = "1.0.0" }
-embassy-time = { version = "0.5.0" }
-embassy-rp = { version = "0.9.0", features = [
+embassy-time = { version = "0.5.1" }
+embassy-rp = { version = "0.10.0", features = [
     "time-driver",
     "critical-section-impl",
     "rp235xa",
     "binary-info",
 ] }
-cortex-m-rt = "0.7.5"
-defmt = { version = "1.0.1", optional = true }
-defmt-rtt = { version = "1.1.0", optional = true }
+cortex-m-rt = "0.7.6"
+# Used for the resetting panic handler; already in the tree via embassy-rp.
+cortex-m = "0.7.8"
+# Only pulled in by the `debug` feature; release builds supply their own
+# resetting panic handler.
+panic-probe = { version = "1.0.0", optional = true }
+defmt = { version = "1.1.1", optional = true }
+defmt-rtt = { version = "1.3.0", optional = true }
 
 [[bin]]
 name = "blaustein-led"
@@ -55,9 +67,32 @@ test = false
 bench = false
 doctest = false
 
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+
+# opt-level 0 produces needlessly large and slow firmware; 1 keeps debug builds
+# usable on the target while staying easy to step through.
+[profile.dev]
+opt-level = 1
+debug = 2
+
+# `opt-level = "s"` rather than 3: this workload is idle almost all the time, and
+# level 3 unrolls loops aggressively enough to nearly double .text for no gain.
 [profile.release]
-opt-level = 3
-lto = true
+opt-level = "s"
+lto = "fat"
 incremental = false
 codegen-units = 1
 strip = "symbols"
+
+# Release-grade code generation, but keeps the symbol table that defmt needs to
+# decode RTT output (`strip = "symbols"` would discard it).
+# Use with: cargo build --profile release-debug --features debug
+[profile.release-debug]
+inherits = "release"
+strip = "none"
+debug = 2

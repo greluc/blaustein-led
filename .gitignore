@@ -59,7 +59,8 @@ fabric.properties
 *.vsix
 debug/
 target/
-Cargo.lock
+# Cargo.lock is intentionally NOT ignored: this crate produces a firmware binary,
+# and committing the lockfile keeps builds reproducible across clones and CI.
 **/*.rs.bk
 *.pdb
 *.ko

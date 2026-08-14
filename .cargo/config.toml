@@ -1,5 +1,5 @@
 [target.'cfg(all(target_arch = "arm", target_os = "none"))']
-#runner = "probe-rs run --chip RP2040"
+#runner = "probe-rs run --chip RP2350"
 #runner = "elf2uf2-rs -d"
 runner = "picotool load -u -v -x -t elf"
 
@@ -7,4 +7,7 @@ runner = "picotool load -u -v -x -t elf"
 target = "thumbv8m.main-none-eabihf"
 
 [env]
-DEFMT_LOG = "off"
+# Log level for builds that enable the `debug` feature. Release builds contain no
+# defmt stack at all, so this has no effect there. Override per invocation with
+# e.g. `DEFMT_LOG=trace cargo build --profile release-debug --features debug`.
+DEFMT_LOG = "info"

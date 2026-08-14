@@ -1,0 +1,7 @@
+# Pins the project to the current stable toolchain and installs the bare-metal
+# target automatically, so a fresh clone builds without a manual
+# `rustup target add`.
+[toolchain]
+channel = "stable"
+components = ["clippy", "rustfmt", "llvm-tools"]
+targets = ["thumbv8m.main-none-eabihf"]

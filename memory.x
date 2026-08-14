@@ -36,8 +36,13 @@ SECTIONS {
 
 } INSERT AFTER .vector_table;
 
-/* move .text to start /after/ the boot info */
-_stext = ADDR(.start_block) + SIZEOF(.start_block);
+/* move .text to start /after/ the boot info
+ *
+ * Round up to 8 bytes: .text carries an 8-byte alignment requirement, and
+ * starting it at an unaligned address makes the linker warn and can misalign
+ * 8-byte-aligned items inside the section.
+ */
+_stext = ALIGN(ADDR(.start_block) + SIZEOF(.start_block), 8);
 
 SECTIONS {
     /* ### Picotool 'Binary Info' Entries
