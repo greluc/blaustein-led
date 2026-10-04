@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `[profile.dev]` with `opt-level = 1`.
 - Default `DEFMT_LOG` to `info` so the `debug` feature actually produces output.
 - Update the bundled Windows `pico-sdk-tools` archive in `libs/` from 2.3.0 to 2.3.1 (`pioasm` only; `picotool` is not bundled).
+- Update `cortex-m-rt` to 0.7.7 and refresh transitive patch/minor releases in `Cargo.lock` (bitflags, cc, cfg-if, either, find-msvc-tools, generator, indexmap, lazy_static, libc, log, siphasher, smallvec, thiserror, unicode-ident, zerocopy). `embedded-storage` 0.3.2 and `embedded-storage-async` 0.4.2 stay out because they require Rust 1.87, above the declared `rust-version` of 1.85.
 
 ### Fixed
 
