@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Set `opt-level = "s"` for release builds; `opt-level = 3` nearly doubled `.text` for no benefit in this workload.
 - Add `[profile.dev]` with `opt-level = 1`.
 - Default `DEFMT_LOG` to `info` so the `debug` feature actually produces output.
+- Update the bundled Windows `pico-sdk-tools` archive in `libs/` from 2.3.0 to 2.3.1 (`pioasm` only; `picotool` is not bundled).
 
 ### Fixed
 
