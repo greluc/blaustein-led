@@ -51,7 +51,7 @@ embassy-rp = { version = "0.10.0", features = [
     "rp235xa",
     "binary-info",
 ] }
-cortex-m-rt = "0.7.6"
+cortex-m-rt = "0.7.7"
 # Used for the resetting panic handler; already in the tree via embassy-rp.
 cortex-m = "0.7.9"
 # Only pulled in by the `debug` feature; release builds supply their own
