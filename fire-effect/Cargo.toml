@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 the Blaustein LED contributors
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
 [package]
 name = "fire-effect"
 description = "Integer-only campfire flicker simulation for the LEDs of Burg Blaustein."

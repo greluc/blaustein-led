@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: 2026 the Blaustein LED contributors
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-unwrap-in-tests = true
+too-many-lines-threshold = 60
+cognitive-complexity-threshold = 15
+doc-valid-idents = ["RP2350", "RP235x", "..", "picotool"]

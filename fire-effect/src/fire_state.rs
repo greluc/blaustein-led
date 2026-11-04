@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 the Blaustein LED contributors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! Flicker simulation for one LED channel.
 
 use core::marker::PhantomData;

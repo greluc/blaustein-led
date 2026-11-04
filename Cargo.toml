@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2025 the Blaustein LED contributors
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
 [workspace]
 members = ["fire-effect"]
 
@@ -6,7 +9,7 @@ version = "1.0.0"
 authors = ["Lucas Greuloch (greluc) <lucas.greuloch@gmail.com>"]
 homepage = "https://github.com/greluc/blaustein-led"
 repository = "https://github.com/greluc/blaustein-led"
-license = "MIT"
+license = "MIT OR Apache-2.0"
 edition = "2024"
 # Current stable toolchain.
 rust-version = "1.99.1"

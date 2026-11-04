@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 the Blaustein LED contributors
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
 # Pins the project to the current stable toolchain and installs the bare-metal
 # target automatically, so a fresh clone builds without a manual
 # `rustup target add`.

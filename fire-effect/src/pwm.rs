@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 the Blaustein LED contributors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! Gamma-corrected PWM duty values and PWM timing.
 
 use crate::fixed_point::Q16;

@@ -1,0 +1,108 @@
+# SPDX-FileCopyrightText: 2026 the Blaustein LED contributors
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  format:
+    name: rustfmt
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install the nightly rustfmt
+        run: rustup toolchain install nightly --profile minimal --component rustfmt
+
+      - name: Check the formatting
+        run: cargo +nightly fmt --all --check
+
+  effect:
+    name: fire-effect (clippy and tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install the toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+
+      - name: Lint the effect crate and its tests
+        run: cargo clippy-host --locked
+
+      - name: Run the host tests
+        run: cargo test-host --locked
+
+  firmware:
+    name: firmware (${{ matrix.profile }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - profile: release
+            features: ""
+          - profile: release-debug
+            features: debug
+          - profile: dev
+            features: ""
+    env:
+      PROFILE: ${{ matrix.profile }}
+      FEATURES: ${{ matrix.features }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install the toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+
+      - name: Lint the firmware
+        run: cargo clippy --locked --profile "$PROFILE" ${FEATURES:+--features "$FEATURES"}
+
+      - name: Build the firmware
+        run: cargo build --locked --profile "$PROFILE" ${FEATURES:+--features "$FEATURES"}
+
+      - name: Report the image size
+        if: matrix.profile == 'release'
+        run: |
+          size="$(rustc --print sysroot)/lib/rustlib/x86_64-unknown-linux-gnu/bin/llvm-size"
+          {
+            echo '### Release image'
+            echo '```'
+            "$size" -A target/thumbv8m.main-none-eabihf/release/blaustein-led | grep -E '^(section|\.text|\.rodata|\.data|\.bss)'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the release image
+        if: matrix.profile == 'release'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: blaustein-led-elf
+          path: target/thumbv8m.main-none-eabihf/release/blaustein-led
+          if-no-files-found: error
+          retention-days: 30

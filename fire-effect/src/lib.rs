@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 the Blaustein LED contributors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! Integer-only campfire flicker simulation.
 //!
 //! A [`FireProfile`] supplies a [`FireConfig`] at compile time. [`FireState`] is generic over the

@@ -1,174 +1,191 @@
 # Contributing to Blaustein LED
 
-First off, thanks for taking the time to contribute.
+Thanks for taking the time to contribute. This document explains how to ask, report, propose and
+change things, and which checks a change has to pass.
 
-The following is a set of guidelines for contributing to Blaustein LED, which is hosted with GitHub.
-These are mostly guidelines, not rules.
-Use your best judgment and feel free to propose changes to this document in a merge request.
-
-## Table Of Contents
+## Table of contents
 
 - [Code of Conduct](#code-of-conduct)
-- [I don't want to read this whole thing. I've a question.](#i-dont-want-to-read-this-whole-thing-ive-a-question)
-- [How Can I Contribute?](#how-can-i-contribute)
-- [Reporting Bugs](#reporting-bugs)
-- [Suggesting Enhancements](#suggesting-enhancements)
-- [Your First Code Contribution](#your-first-code-contribution)
-- [Merge Requests](#merge-requests)
-- [Style Guides](#style-guides)
-- [Git Commit Messages Style Guide](#git-commit-messages-style-guide)
-
-
+- [Asking questions](#asking-questions)
+- [Reporting a security vulnerability](#reporting-a-security-vulnerability)
+- [Reporting bugs](#reporting-bugs)
+- [Suggesting features](#suggesting-features)
+- [Local development setup](#local-development-setup)
+- [Pull requests](#pull-requests)
+- [Developer Certificate of Origin (DCO)](#developer-certificate-of-origin-dco)
+- [Commit messages](#commit-messages)
+- [Style guides](#style-guides)
+- [Before-you-push checklist](#before-you-push-checklist)
+- [Releasing](#releasing)
+- [Licence](#licence)
 
 ## Code of Conduct
 
-This project and everyone who participates in it are governed by the [Code of Conduct](CODE_OF_CONDUCT.md).
-By participating, you're expected to uphold this code.
-Report unacceptable behavior to [lucas.greuloch@pm.me](mailto:lucas.greuloch@pm.me).
+Everyone taking part is bound by the [Code of Conduct](CODE_OF_CONDUCT.md). Report unacceptable
+behaviour to [lucas.greuloch@gmail.com](mailto:lucas.greuloch@gmail.com).
 
+## Asking questions
 
+Search the [issues](https://github.com/greluc/blaustein-led/issues) first. If your question is not
+answered there, open an issue with the label `question`.
 
-## I don't want to read this whole thing. I've a question.
+## Reporting a security vulnerability
 
-First, you can read the documentation or search the wiki for the information you need.
+Never report a security problem in a public issue. Follow [.github/SECURITY.md](.github/SECURITY.md)
+and use GitHub's private vulnerability reporting.
 
-If you need help by the developers, create an issue with your question and add the label *support* to it.
-*Perform a cursory search* to see if your question has already been asked.
-If it has, add a comment to the existing issue instead of opening a new one.
+## Reporting bugs
 
-___
-*Note:* If you find a *Closed* issue that seems like it is the same topic that you're looking for, open a new issue and include a link to the original issue in the body of your new one.
-___
+Open a [bug report](https://github.com/greluc/blaustein-led/issues/new?template=bug_report.yml). The
+form asks for what you need to give: what happened and what you expected, the steps from a fresh
+clone, the version or commit, the build profile, the board and LEDs, your toolchain, any change to
+`CFG`, and the build output or defmt log. If you find a closed issue that matches, open a new one
+and link the old one.
 
-## How Can I Contribute?
+## Suggesting features
 
-### Reporting Bugs
+Open a [feature request](https://github.com/greluc/blaustein-led/issues/new?template=feature_request.yml)
+and describe the look or behaviour you are after, why the current parameters do not give it, and
+how it could work.
 
-This section guides you through submitting a bug report for Blaustein LED.
-Following these guidelines helps maintainers and the community to understand your report, reproduce the behavior, and find related reports.
+## Local development setup
 
-Before creating bug reports,
-check [this list](#before-submitting-a-bug-report) as you might find out that you don't need to create one.
-When you're creating a bug report, [include as many details as possible](#how-do-i-submit-a-good-bug-report).
+1. Install [rustup](https://rustup.rs). `rust-toolchain.toml` selects the stable toolchain, the
+   `clippy`, `rustfmt` and `llvm-tools` components and the `thumbv8m.main-none-eabihf` target.
+2. Install the nightly `rustfmt`, which the strict `rustfmt.toml` needs:
+   `rustup toolchain install nightly --profile minimal --component rustfmt`.
+3. To flash, install [picotool](https://github.com/raspberrypi/picotool).
+4. For dependency changes, install [cargo-deny](https://github.com/EmbarkStudios/cargo-deny):
+   `cargo install --locked cargo-deny`.
 
+The workspace has two packages:
 
+- `fire-effect` is the flicker simulation, gamma curve and PWM timing. It has no dependencies and
+  no hardware access; `cargo test-host` and `cargo clippy-host` run it on your machine.
+- `blaustein-led` (the root package) is the firmware for the RP2350. It builds for
+  `thumbv8m.main-none-eabihf`, the default target in `.cargo/config.toml`.
 
-#### Before Submitting A Bug Report
+`fire-effect` holds a regression test of the baseline flicker. A change that alters the look on
+purpose updates the sum and fingerprint in `baseline_output_is_stable` and says so in the pull
+request.
 
-* *Check the FAQ* for a list of common questions and problems.
-* *Perform a cursory search* to see if the problem has already been reported. If it has, *and the issue is still open*, add a comment to the existing issue instead of opening a new one.
+## Pull requests
 
-___
-*Note:* If you find a *Closed* issue that seems like it is the same thing that you're experiencing, open a new issue and include a link to the original issue in the body of your new one.
-___
+- Branch from `main` and open the pull request against `main`. Stacked pull requests are fine;
+  delete the lower branch when it is merged, so GitHub moves the next one onto `main`.
+- Fill in the [pull request template](.github/PULL_REQUEST_TEMPLATE.md) and link the issue.
+- Keep a pull request to one topic. Split refactors from behaviour changes.
+- CI (`CI` and `Repository gates`) has to pass. A change you could not test on a board is marked as
+  such in the pull request.
+- A visible change adds an entry to `CHANGELOG.md` under `[Unreleased]`.
 
-#### How Do I Submit A (Good) Bug Report?
+## Developer Certificate of Origin (DCO)
 
-Bugs are tracked as Issues.
+Every commit is signed off under the [Developer Certificate of Origin](https://developercertificate.org):
+by adding the trailer you certify that you wrote the change or have the right to submit it under
+the project's licences.
 
-Explain the problem and include additional details to help maintainers reproduce the problem:
+```bash
+git commit -s
+```
 
-* *Use a clear and descriptive title* for the issue to identify the problem.
-* *Describe the exact steps which reproduce the problem* in as many details as possible. 
-For example, start by explaining how you started the software.
-* When listing steps, *don't only say what you did, but explain how you did it*.
-* *Provide specific examples to demonstrate the steps.*
-Include links to files, other projects, or copy/pasteable snippets, which you use in those examples.
-If you're providing snippets in the issue,
-* Use [Markdown code blocks](https://gitlab.com/help/user/markdown#code-and-syntax-highlighting).
-* *Describe the behavior you observed after following the steps* and point out what exactly is the problem with that behavior.
-* *Explain which behavior you expected to see instead and why.*
-* *Include screenshots and animated GIFs* which show you following the described steps and clearly demonstrate the problem.
-* *If you're reporting that Blaustein LED crashed*, include a crash report with a stack trace from the operating system.
-  Include the crash report in the issue in a [code block](https://gitlab.com/help/user/markdown#code-and-syntax-highlighting),
-  a file attachment,
-  or put it in a [snippet](https://gitlab.com/dashboard/snippets) and provide the link to that snippet.
-* *If the problem wasn't triggered by a specific action*, describe what you were doing before the problem happened and share more information using the guidelines below.
+`-s` adds `Signed-off-by: Your Name <your@email>` from `git config user.name` and `user.email`. Do
+not type the trailer by hand; it has to match the commit author, and the `DCO sign-off` gate checks
+that. To add a missing sign-off, run `git commit --amend --signoff --no-edit` for the last commit or
+`git rebase --signoff main` for the whole branch, then push with `--force-with-lease`.
 
+## Commit messages
 
-Provide more context by answering these questions:
+Commit messages follow [Conventional Commits](https://www.conventionalcommits.org):
 
-* *Did the problem start happening recently,* (for example, after updating to a new version of Blaustein LED), or was this always a problem?
-* If the problem started happening recently, *can you reproduce the problem in an older version of Blaustein LED?*
-  What is the most recent version in which the problem doesn't happen?
-  You can download older versions of Blaustein LED from the release's directory.
-* *Can you reliably reproduce the issue?*
-  If not, provide details about how often the problem happens and under which conditions it normally happens.
-* If the problem is related to working with files (for example, opening and editing files), *does the problem happen for all files and projects or only some?* Is there anything special about the files you're using?
+```text
+<type>(<optional scope>): <summary in the imperative, at most 72 characters>
 
+<body: what changed and why, wrapped at 72 characters>
 
-Include details about your configuration and environment:
+Signed-off-by: ...
+```
 
-* *Which version of Blaustein LED are you using?*
-* *What is the name and version of the OS you're using?*
-* *Are you running Blaustein LED in a virtual machine or a container?*
-  If so, which VM/Container software are you using,
-  and what operating systems and versions are used for the host and the guest?
+The types in use are `feat`, `fix`, `perf`, `refactor`, `test`, `docs`, `build`, `ci` and `chore`
+(dependency updates are `chore(deps)`). The history of a change belongs in the commit message and
+the pull request, not in code comments.
 
+## Style guides
 
-### Suggesting Enhancements
+### Rust
 
-This section guides you through submitting an enhancement suggestion for Blaustein LED, including completely new features and minor improvements to existing functionality.
-Following these guidelines helps maintainers and the community to understand your suggestion and find related suggestions.
+- The code follows the [Google Rust Style Guide](https://google.github.io/styleguide/rustguide.html).
+- `cargo +nightly fmt --all` formats; do not skip it with `#[rustfmt::skip]` for personal taste.
+- `Cargo.toml` denies all warnings, every Clippy group and a set of restriction lints. A lint is
+  suppressed only where it is wrong for that spot, with `#[expect(lint, reason = "...")]`, never
+  with `#[allow]`.
+- No floating point, no allocation and no `unsafe` outside the documented `link_section`.
+  Configuration-derived values stay compile-time constants.
+- Modules are small and have one responsibility; dependencies point from the firmware to
+  `fire-effect`, never back.
 
-Before creating enhancement suggestions,
-check [this list](#before-submitting-an-enhancement-suggestion) as you might find out that you don't need to create one.
-When you're creating an enhancement suggestion,
-[include as many details as possible](#how-do-i-submit-a-good-enhancement-suggestion).
+### Comments
 
+- Items carry rustdoc comments (`///`, `//!`): one summary sentence, a contract sentence where a
+  caller needs it, and `# Panics` / `# Errors` / `# Safety` sections where they apply.
+- Short technical comments (`//`) are welcome where the code cannot say it itself: an invariant,
+  a unit, a fixed-point format, why an algorithm is shaped the way it is.
+- No history in comments ("previously", "now", dates, issue numbers), no commented-out code and no
+  `TODO`; open an issue instead.
 
-#### Before Submitting An Enhancement Suggestion
+### Licence headers
 
-* *Perform a cursory search* to see if the enhancement has already been suggested.
-  If it has, add a comment to the existing issue instead of opening a new one.
+Every code and configuration file that allows comments starts with an SPDX header, in the comment
+syntax of the file:
 
-___
-*Note:* If you find a *Closed* issue that seems like it is the same thing that you're suggesting, and you have new arguments to implement it, open a new issue and include a link to the original issue in the body of your new one.
-___
+```rust
+// SPDX-FileCopyrightText: 2026 the Blaustein LED contributors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+```
 
-#### How Do I Submit A (Good) Enhancement Suggestion?
+The year is the year the file was created.
 
-Enhancement suggestions are tracked as Issues. Create an issue and provide the following information:
+### Tests
 
-* *Use a clear and descriptive title* for the issue to identify the suggestion.
-* *Provide a step-by-step description of the suggested enhancement* in as many details as possible.
-* *Provide specific examples to demonstrate the steps.*
-  Include copy/pasteable snippets which you use in those examples,
-* as [Markdown code blocks](https://gitlab.com/help/user/markdown#code-and-syntax-highlighting).
-* *Describe the current behavior* and *explain which behavior you expected to see instead* and why.
-* *Include screenshots and animated GIFs* which help you demonstrate the steps or point out the part which the suggestion is related to.
-* *Explain why this enhancement would be useful* to most Blaustein LED users.
-* *Specify which version of Blaustein LED you're using.*
-* *Specify the name and version of the OS you're using.*
+- Logic lives in `fire-effect` and has unit tests next to it (`#[cfg(test)] mod tests`).
+- Tests use only integer arithmetic and give every assertion a message that says what failed.
 
+## Before-you-push checklist
 
-### Your First Code Contribution
+```bash
+cargo +nightly fmt --all --check
+```
 
-Unsure where to begin contributing to Blaustein LED? You can start by looking through these `beginner` and `help-wanted` issues:
+```bash
+cargo clippy --release
+```
 
-* *Beginner issues* – issues which should only require a few lines of code, and a test or two.
-* *Help wanted issues* – issues which should be a bit more involved than `beginner` issues.
+```bash
+cargo clippy --profile release-debug --features debug
+```
 
+```bash
+cargo clippy-host
+```
 
-### Merge Requests
+```bash
+cargo test-host
+```
 
-* Open a merge request (MR) against the _develop_ branch.
-* Prefix the MR name with one of the following types: "FEATURE", "BUG", "CHORE", "META" and the affected part of the software.
-  For example, [FEATURE – Database] or [BUG – API].
-* Fill in the [required template](.gitlab/merge_request_templates/Merge_Request.md).
-* Don't include issue numbers in the title.
-* Include screenshots or animated GIFs in your merge request whenever possible.
-* End all files with a newline.
-* Avoid platform-dependent code.
+```bash
+cargo deny check
+```
 
+## Releasing
 
-## Style Guides
+1. Move the `[Unreleased]` entries of `CHANGELOG.md` into a new version section with the date.
+2. Bump `version` in `[workspace.package]` of `Cargo.toml` and the version in `README.md`.
+3. Merge that change, then tag the merge commit with a signed tag `vX.Y.Z` and publish a GitHub
+   Release with the `blaustein-led-elf` artifact of that commit attached.
 
+## Licence
 
-### Git Commit Messages Style Guide
-
-* Use the present tense ("Add feature" not "Added feature")
-* Use the imperative mood ("Move cursor to…" not "Moves cursor to…")
-* Limit the first line to 72 characters or fewer
-* Reference issues and merge requests (`relates to #XYZ` or `relates to !XYZ`)
-* Add `[skip ci]` to the commit message to skip the ci pipeline if it doesn't need to run
+Blaustein LED is licensed under either of the [Apache License, Version 2.0](LICENSE-APACHE) or the
+[MIT licence](LICENSE-MIT) at your option. Unless you explicitly state otherwise, any contribution
+intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 licence,
+shall be dual licensed as above, without any additional terms or conditions.

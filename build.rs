@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2025 the Blaustein LED contributors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! Puts `memory.x` on the linker search path and selects the linker scripts.
 
 use std::path::PathBuf;
