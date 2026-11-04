@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Seed the channels in `const` blocks, so a zero seed fails the build; replace `#[allow]` with `#[expect(…, reason = …)]`; let the fire task return `!`.
 - Use the `cargo::` build-script syntax and `fs::write` in `build.rs`.
 - Move the simulation, gamma table and PWM timing into the `fire-effect` workspace crate with no hardware dependencies, and add host-run unit tests (`cargo test-host`) for configuration validation, envelope bounds and period, jitter range, determinism, flares, duty range, `top`, and a fingerprint of the baseline flicker. `FireState` is generic over a `FireProfile`, so the firmware still folds the configuration into immediates; the release image is unchanged in size.
+- Shrink the release image from 4072 to 3340 bytes of flash (code and constants): compute the square-law gamma curve with one multiply and one hardware divide instead of a 512-byte table (identical values), and build with `opt-level = "z"`.
 - Remove the bundled Windows `pico-sdk-tools` archive from `libs/`. It only contained `pioasm` for the C SDK, which this firmware never uses.
 - Remove the unused `rp235x_riscv.x` linker script, the commented-out runners in `.cargo/config.toml`, and the unrelated language templates from `.gitignore`.
 
