@@ -30,8 +30,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Raise `rust-version` to 1.99.1, the current stable toolchain, and update `cortex-m` to 0.7.10, `defmt` to 1.2.0 and `defmt-rtt` to 1.3.1. `Cargo.lock` now also picks up `embedded-storage` 0.3.2, `embedded-storage-async` 0.4.2, `fixed` 1.31.0, `heapless` 0.9.3 and current patch releases of the remaining transitive crates.
 - Add `.gitattributes` so all text files are checked out with LF line endings on every platform and the bundled archive is treated as binary.
 - Correct the author address in `Cargo.toml`.
+- Split `src/main.rs` into single-purpose modules: `config` (configuration and its validation), `fire_state` (per-channel simulation), `pwm` (gamma table, duty and `top`), and `fixed_point`.
+- Deny all Clippy groups (`all`, `pedantic`, `nursery`, `cargo`), a curated set of restriction lints and all compiler warnings; add a strict `rustfmt.toml` (formatting needs the nightly `rustfmt`).
+- Simplify the breathing envelope to a signed step that flips at the bounds, read jitter and flare bytes by destructuring `to_be_bytes`, and compute `top` with `saturating_sub` and `u16::try_from` instead of a clamp and a cast.
+- Seed the channels in `const` blocks, so a zero seed fails the build; replace `#[allow]` with `#[expect(…, reason = …)]`; let the fire task return `!`.
+- Use the `cargo::` build-script syntax and `fs::write` in `build.rs`.
+- Move the simulation, gamma table and PWM timing into the `fire-effect` workspace crate with no hardware dependencies, and add host-run unit tests (`cargo test-host`) for configuration validation, envelope bounds and period, jitter range, determinism, flares, duty range, `top`, and a fingerprint of the baseline flicker. `FireState` is generic over a `FireProfile`, so the firmware still folds the configuration into immediates; the release image is unchanged in size.
+- Remove the bundled Windows `pico-sdk-tools` archive from `libs/`. It only contained `pioasm` for the C SDK, which this firmware never uses.
+- Remove the unused `rp235x_riscv.x` linker script, the commented-out runners in `.cargo/config.toml`, and the unrelated language templates from `.gitignore`.
 
 ### Fixed
+
+- The jitter rounded toward negative infinity, which darkened the flame by half a step on average and left a `-1` jitter on half the ticks even with `jitter_max = 0`. It now rounds to nearest and spans `-jitter_max..=jitter_max` symmetrically.
+
+- A `breath_period_ms` shorter than `tick_ms` could overflow the envelope step, and `smooth_q8 = 0` froze the output; both now fail the build.
+- The comment on `pulse_decay_q8 = 232` claimed a ~150 ms half-life; it is ~105 ms at a 15 ms tick.
 
 - Breathing envelope could freeze permanently when `min_intensity`/`max_intensity`/`breath_period_ms` made the integer envelope step truncate to zero. The step is now computed in Q16 in a single 64-bit expression, which also cuts the breath period error from 0.8 % to 0.2 %.
 - `.text` was not 8-byte aligned, which produced a linker warning.
