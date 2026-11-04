@@ -17,10 +17,32 @@ const BYTE_CENTER: i32 = 128;
 /// Upper bound of the target intensity.
 const INTENSITY_MAX: i32 = 255;
 
+/// First multiplier of the MurmurHash3 32-bit finalizer.
+const FMIX_MULTIPLIER_1: u32 = 0x85eb_ca6b;
+
+/// Second multiplier of the MurmurHash3 32-bit finalizer.
+const FMIX_MULTIPLIER_2: u32 = 0xc2b2_ae35;
+
+/// Returns the PRNG seed of a channel: distinct per channel and never zero.
+///
+/// The MurmurHash3 finalizer is a bijection on `u32` that maps only 0 to 0, so mixing
+/// `channel + 1` gives a distinct non-zero seed for every channel below `u32::MAX`.
+#[must_use]
+pub const fn channel_seed(channel: u32) -> u32 {
+    let mut hash = channel.wrapping_add(1);
+    hash ^= hash >> 16_u32;
+    hash = hash.wrapping_mul(FMIX_MULTIPLIER_1);
+    hash ^= hash >> 13_u32;
+    hash = hash.wrapping_mul(FMIX_MULTIPLIER_2);
+    hash ^= hash >> 16_u32;
+    hash
+}
+
 /// State of the fire simulation for one LED channel.
 ///
 /// The configuration comes from the profile `P` rather than a field, so every
 /// configuration-derived operand folds into an immediate.
+#[derive(Clone, Copy)]
 pub struct FireState<P> {
     /// Xorshift32 state, never zero.
     rng: u32,
@@ -67,6 +89,25 @@ impl<P: FireProfile> FireState<P> {
             pulse: 0,
             profile: PhantomData,
         }
+    }
+
+    /// Creates `N` channel simulations, seeded with [`channel_seed`] of their index.
+    ///
+    /// Evaluate it in a `const` block, so the whole bank is built at compile time.
+    #[must_use]
+    pub const fn channels<const N: usize>() -> [Self; N]
+    where
+        P: Copy,
+    {
+        let mut states = [Self::new(channel_seed(0)); N];
+        let mut index = 0;
+        let mut channel = 0;
+        while index < N {
+            states[index] = Self::new(channel_seed(channel));
+            index += 1;
+            channel += 1;
+        }
+        states
     }
 
     /// Advances the simulation by one tick and returns the new intensity.
@@ -135,7 +176,7 @@ mod tests {
 
     use core::ops::RangeInclusive;
 
-    use super::{FireState, jitter, xorshift32};
+    use super::{FireState, channel_seed, jitter, xorshift32};
     use crate::config::{FireConfig, FireProfile};
 
     /// Seed of the first channel in the firmware.
@@ -145,6 +186,7 @@ mod tests {
     const TICKS: u32 = 100_000;
 
     /// The baseline configuration.
+    #[derive(Clone, Copy)]
     struct Baseline;
 
     impl FireProfile for Baseline {
@@ -220,6 +262,32 @@ mod tests {
         assert_eq!(jitter(128, 25), 0_i32, "center byte maps to zero");
         for random in 0..=u8::MAX {
             assert_eq!(jitter(random, 0), 0_i32, "disabled jitter must stay zero");
+        }
+    }
+
+    /// Channel seeds are non-zero and distinct.
+    #[test]
+    fn channel_seeds_are_distinct_and_non_zero() {
+        let mut seeds: Vec<u32> = (0..1_024).map(channel_seed).collect();
+        assert!(!seeds.contains(&0), "a channel seed is zero");
+        seeds.sort_unstable();
+        seeds.dedup();
+        assert_eq!(seeds.len(), 1_024, "two channels share a seed");
+    }
+
+    /// A bank of channels matches simulations created one by one from their channel seeds.
+    #[test]
+    fn channels_are_seeded_by_index() {
+        let mut bank: [FireState<Baseline>; 16] = const { FireState::channels() };
+        for (channel, state) in (0_u32..).zip(&mut bank) {
+            let mut single = FireState::<Baseline>::new(channel_seed(channel));
+            for _ in 0..TICKS {
+                assert_eq!(
+                    state.update(),
+                    single.update(),
+                    "channel {channel} diverged"
+                );
+            }
         }
     }
 
