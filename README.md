@@ -31,22 +31,22 @@ Note: Ensure you use a proper series resistor on every channel. The code assumes
 
 ## Configuration
 
-All parameters live in `src/main.rs` in the `FireConfig` struct and can be tweaked to taste. Defaults are chosen for a smooth, warm indoor campfire.
+All parameters live in `src/config.rs` in the `FireConfig` struct and can be tweaked to taste. Defaults are chosen for a smooth, warm indoor campfire.
 
 Parameters:
 
 - `pwm_freq_hz` (u32): PWM frequency. 20–30 kHz keeps PWM inaudible and flicker‑free.
 - `pwm_divider` (u8): Clock divider for PWM. Use the smallest value that keeps the computed `top` within `u16`.
 - `min_intensity` / `max_intensity` (u8): Base brightness range (0..=255). Increase `min_intensity` if your LED is too dim.
-- `breath_period_ms` (u32): Full up+down cycle of the slow “breathing” envelope in milliseconds. 3–5 seconds feels natural.
+- `breath_period_ms` (u32): Full up+down cycle of the slow “breathing” envelope in milliseconds, at least one tick. 3–5 seconds feels natural.
 - `jitter_max` (u8): Per‑tick random jitter around the base (0..=64 typical). Larger values look more chaotic.
 - `pulse_prob` (u8): Probability per tick (0..=255) of a brief flame “lick”. Small values (~2–5) are subtle (~1 % per tick); the shipped value of 48 is about 19 % per tick, a visibly busy fire.
 - `pulse_boost` (u8): How much a pulse adds when it triggers.
 - `pulse_decay_q8` (u8): Q8 decay factor (0..=255) for pulses per tick. 224=fast decay, 248=slower.
-- `smooth_q8` (u8): Q8 smoothing factor for the output EMA. Smaller means smoother (and slower to react).
+- `smooth_q8` (u8): Q8 smoothing factor for the output EMA, at least 1. Smaller means smoother (and slower to react).
 - `tick_ms` (u32): Update interval in milliseconds. 10–20 ms works well.
 
-To change the look, edit the `CFG` constant in `src/main.rs`:
+To change the look, edit the `CFG` constant in `src/config.rs`:
 
 ```rust
 const CFG: FireConfig = FireConfig {
@@ -84,6 +84,13 @@ Alternatively, you can use `picotool` directly with the built `.elf` from `targe
 | `dev` | `cargo build` | `opt-level = 1`, full debug info. |
 
 Set the log level for `debug` builds with `DEFMT_LOG` (defaults to `info` in `.cargo/config.toml`).
+
+### Code quality
+
+`Cargo.toml` denies every Clippy group (`all`, `pedantic`, `nursery`, `cargo`), a set of restriction lints that fit an integer-only `no_std` firmware, and all compiler warnings. `rustfmt.toml` enables the strict formatting options, most of which need the nightly `rustfmt`; the code itself builds on stable.
+
+1. Format: `cargo +nightly fmt`
+2. Lint: `cargo clippy --release` and `cargo clippy --profile release-debug --features debug`
 
 ## Current Release Version
 
