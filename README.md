@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/design/logo.svg" alt="Blaustein LED logo: a castle tower with a flame burning in its window" width="128" height="128">
+</p>
+
 # Blaustein LED
 
 [![CI](https://github.com/greluc/blaustein-led/actions/workflows/ci.yml/badge.svg)](https://github.com/greluc/blaustein-led/actions/workflows/ci.yml)
@@ -120,6 +124,7 @@ the code itself builds on stable. CI runs all of the above on every pull request
 | [`src/config.rs`](src/config.rs) | The installed `CFG`. |
 | [`memory.x`](memory.x), [`build.rs`](build.rs) | Memory layout of the RP2350 and the linker setup. |
 | [`.github/`](.github/) | CI, repository gates, Dependabot, issue and pull request templates, security policy. |
+| [`docs/design/`](docs/design/) | The logo (`logo.svg`) and the GitHub social preview (`social-preview.svg`, rendered to `social-preview.png`). |
 
 ## Documentation
 

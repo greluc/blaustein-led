@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+SPDX-FileCopyrightText: 2026 the Blaustein LED contributors
+SPDX-License-Identifier: MIT OR Apache-2.0
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-labelledby="title">
+  <title id="title">Blaustein LED: campfire flicker firmware for the Raspberry Pi Pico 2</title>
+  <rect width="1280" height="640" fill="#1e3a5f"/>
+  <g transform="translate(12.8 -28) scale(2.4)">
+    <path d="M76 220V70h22v20h19V70h22v20h19V70h22v150z" fill="#9db4cf"/>
+    <path d="M102 202v-58a26 26 0 0 1 52 0v58z" fill="#0f2238"/>
+    <g transform="translate(128 200) scale(0.5)">
+      <path d="M0-100C22-72 40-52 40-26 40-10 24 0 0 0S-40-10-40-26C-40-46-28-58-18-70-16-54-10-46-2-42-8-62-8-82 0-100z" fill="#f97316"/>
+      <path d="M0-58C12-44 20-34 20-20 20-8 11 0 0 0S-20-8-20-20C-20-32-12-40-6-46-5-38-2-34 2-32-1-42-2-50 0-58z" fill="#fbbf24"/>
+    </g>
+  </g>
+  <g font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif">
+    <text x="560" y="270" font-size="92" font-weight="600" fill="#f1f5f9">Blaustein LED</text>
+    <text x="562" y="345" font-size="38" fill="#9db4cf">Campfire flicker firmware</text>
+    <text x="562" y="395" font-size="38" fill="#9db4cf">for the Raspberry Pi Pico 2</text>
+    <text x="562" y="470" font-size="30" fill="#fbbf24">Rust · Embassy · MIT OR Apache-2.0</text>
+  </g>
+</svg>

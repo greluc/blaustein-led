@@ -29,6 +29,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   actionlint, zizmor and the DCO sign-off; Dependabot for Cargo and GitHub Actions; issue and pull
   request templates; `CODEOWNERS`; a security policy.
 - `CLAUDE.md` and `AGENTS.md` for coding agents, and `.editorconfig`.
+- Project logo, a castle tower with a flame burning in its window (`docs/design/logo.svg`), shown
+  at the top of the README, and a GitHub social preview image (`docs/design/social-preview.png`).
 - SPDX licence headers in every code and configuration file.
 
 ### Changed

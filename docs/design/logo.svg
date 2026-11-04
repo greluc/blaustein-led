@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+SPDX-FileCopyrightText: 2026 the Blaustein LED contributors
+SPDX-License-Identifier: MIT OR Apache-2.0
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title">
+  <title id="title">Blaustein LED: a castle tower with a flame burning in its window</title>
+  <rect width="256" height="256" rx="48" fill="#1e3a5f"/>
+  <path d="M76 220V70h22v20h19V70h22v20h19V70h22v150z" fill="#9db4cf"/>
+  <path d="M102 202v-58a26 26 0 0 1 52 0v58z" fill="#0f2238"/>
+  <g transform="translate(128 200) scale(0.5)">
+    <path d="M0-100C22-72 40-52 40-26 40-10 24 0 0 0S-40-10-40-26C-40-46-28-58-18-70-16-54-10-46-2-42-8-62-8-82 0-100z" fill="#f97316"/>
+    <path d="M0-58C12-44 20-34 20-20 20-8 11 0 0 0S-20-8-20-20C-20-32-12-40-6-46-5-38-2-34 2-32-1-42-2-50 0-58z" fill="#fbbf24"/>
+  </g>
+</svg>
