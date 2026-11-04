@@ -14,7 +14,7 @@ flicker on up to sixteen LEDs, driven by a Raspberry Pi Pico 2 (RP2350). Each LE
 with its own seed, so the flames never move in lockstep, and a watchdog brings the effect back on
 its own if it ever stops.
 
-The current release is **[1.0.0](https://github.com/greluc/blaustein-led/releases/tag/v1.0.0)**.
+The current release is **[2.0.0](https://github.com/greluc/blaustein-led/releases/tag/v2.0.0)**.
 Blaustein LED is written in Rust with [Embassy](https://embassy.dev) and licensed under either of
 the [Apache License, Version 2.0](LICENSE-APACHE) or the [MIT licence](LICENSE-MIT) at your option.
 The source lives at [github.com/greluc/blaustein-led](https://github.com/greluc/blaustein-led).
