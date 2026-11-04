@@ -1,55 +1,66 @@
 # Blaustein LED
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
-[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-v3.0%20adopted-ff69b4.svg?style=flat-square)](CODE_OF_CONDUCT.md)
+[![CI](https://github.com/greluc/blaustein-led/actions/workflows/ci.yml/badge.svg)](https://github.com/greluc/blaustein-led/actions/workflows/ci.yml)
+[![Repository gates](https://github.com/greluc/blaustein-led/actions/workflows/repository-gates.yml/badge.svg)](https://github.com/greluc/blaustein-led/actions/workflows/repository-gates.yml)
+[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
+[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-3.0-ff69b4.svg)](CODE_OF_CONDUCT.md)
 
-## Table Of Contents
+Blaustein LED is the firmware for the campfire lights of Burg Blaustein: a smooth, configurable
+flicker on three LEDs, driven by a Raspberry Pi Pico 2 (RP2350). Each LED runs its own simulation
+with its own seed, so the flames never move in lockstep, and a watchdog brings the effect back on
+its own if it ever stops.
 
-- [Description](#description)
-- [Hardware](#hardware)
-- [Configuration](#configuration)
-- [Build & Flash](#build--flash)
-- [Current release version](#current-release-version)
-- [License](#license)
-- [Contribution](#contribution)
-- [Team](#team)
+The current release is **[1.0.0](https://github.com/greluc/blaustein-led/releases/tag/v1.0.0)**.
+Blaustein LED is written in Rust with [Embassy](https://embassy.dev) and licensed under either of
+the [Apache License, Version 2.0](LICENSE-APACHE) or the [MIT licence](LICENSE-MIT) at your option.
+The source lives at [github.com/greluc/blaustein-led](https://github.com/greluc/blaustein-led).
 
-## Description
+## What it does
 
-Smooth, configurable campfire flicker effect for three orange LEDs on Raspberry Pi Pico 2 (RP235x). The LEDs are driven from GPIO 16, 17 and 18 using high‑frequency PWM to create a natural, breathing fire look. Each channel runs its own simulation with a different seed, so the flames do not move in lockstep.
-
-The effect is tuned using integer math (no floats, no allocation) and is optimized for embedded systems: the configuration is a compile‑time constant, the gamma table lives in flash rather than RAM, and all three channels are driven from a single task and a single timer. A watchdog restarts the board if the effect ever stops updating.
+- **Flame.** A slow triangular "breathing" envelope, per-tick random jitter, sporadic flares that
+  decay exponentially, and an output EMA that smooths it all, mapped through a square-law gamma
+  curve to 25 kHz PWM.
+- **Three channels, one task.** GPIO 16 and 17 share PWM slice 0, GPIO 18 uses slice 1. One task
+  and one `Ticker` drive all three, so the cadence never drifts.
+- **Integer only.** No floating point and no allocation. The configuration is a compile-time
+  constant, so every derived value folds into the binary; the release image uses about 3.3 KB of
+  flash for code and constants and 480 bytes of static RAM.
+- **Unattended.** In deployed builds a panic resets the chip instead of halting, and a watchdog
+  resets it if the effect stops updating. Invalid configurations fail the build.
 
 ## Hardware
 
-- Microcontroller: Raspberry Pi Pico 2 (RP235x)
-- LEDs: Orange LEDs recommended (any LED works)
-- Pins: GPIO16 and GPIO17 (PWM slice 0, channels A and B), GPIO18 (PWM slice 1, channel A)
-- Wiring, per channel: GPIO → series resistor (330–1kΩ) → LED anode; LED cathode → GND.
+- Board: Raspberry Pi Pico 2 (RP2350A).
+- LEDs: orange LEDs look best; any LED works.
+- Pins: GPIO 16 and GPIO 17 (PWM slice 0, channels A and B), GPIO 18 (PWM slice 1, channel A).
+- Wiring per channel: GPIO → series resistor (330 Ω to 1 kΩ) → LED anode; LED cathode → GND.
 
-Note: Ensure you use a proper series resistor on every channel. The code assumes active‑high LEDs.
+Use a series resistor on every channel. The firmware assumes active-high LEDs.
 
 ## Configuration
 
-The parameters are the fields of the `FireConfig` struct in `fire-effect/src/config.rs`; the installed values are the `CFG` constant in `src/config.rs`. Defaults are chosen for a smooth, warm indoor campfire.
+The parameters are the fields of `FireConfig` in
+[`fire-effect/src/config.rs`](fire-effect/src/config.rs); the installed values are the `CFG`
+constant in [`src/config.rs`](src/config.rs). The baseline (`FireConfig::new()`) is tuned for a
+smooth, warm indoor campfire.
 
-Parameters:
+| Parameter | Type | Meaning |
+| --- | --- | --- |
+| `pwm_freq_hz` | `u32` | PWM frequency. 20 to 30 kHz keeps PWM inaudible and flicker-free. |
+| `pwm_divider` | `u8` | PWM clock divider, at least 1. Use the smallest value that keeps `top` within `u16`. |
+| `min_intensity` / `max_intensity` | `u8` | Breathing range (0..=255); `max_intensity` must be greater. Raise `min_intensity` if the LED is too dim. |
+| `breath_period_ms` | `u32` | One full up and down cycle of the breathing, at least one tick. 3 to 5 s feels natural. |
+| `jitter_max` | `u8` | Random per-tick jitter around the breathing (0..=64 typical). Larger looks more chaotic. |
+| `pulse_prob` | `u8` | Chance per tick (0..=255) of a short flare. 2 to 5 is subtle (about 1 %); 48 is about 19 %, a busy fire. |
+| `pulse_boost` | `u8` | Intensity a flare adds. |
+| `pulse_decay_q8` | `u8` | Q8 decay factor of a flare per tick. 224 decays fast, 248 slower. |
+| `smooth_q8` | `u8` | Q8 smoothing factor of the output, at least 1. Smaller is smoother and slower to react. |
+| `tick_ms` | `u32` | Update interval in milliseconds. 10 to 20 ms works well. |
 
-- `pwm_freq_hz` (u32): PWM frequency. 20–30 kHz keeps PWM inaudible and flicker‑free.
-- `pwm_divider` (u8): Clock divider for PWM. Use the smallest value that keeps the computed `top` within `u16`.
-- `min_intensity` / `max_intensity` (u8): Base brightness range (0..=255). Increase `min_intensity` if your LED is too dim.
-- `breath_period_ms` (u32): Full up+down cycle of the slow “breathing” envelope in milliseconds, at least one tick. 3–5 seconds feels natural.
-- `jitter_max` (u8): Per‑tick random jitter around the base (0..=64 typical). Larger values look more chaotic.
-- `pulse_prob` (u8): Probability per tick (0..=255) of a brief flame “lick”. Small values (~2–5) are subtle (~1 % per tick); the shipped value of 48 is about 19 % per tick, a visibly busy fire.
-- `pulse_boost` (u8): How much a pulse adds when it triggers.
-- `pulse_decay_q8` (u8): Q8 decay factor (0..=255) for pulses per tick. 224=fast decay, 248=slower.
-- `smooth_q8` (u8): Q8 smoothing factor for the output EMA, at least 1. Smaller means smoother (and slower to react).
-- `tick_ms` (u32): Update interval in milliseconds. 10–20 ms works well.
-
-To change the look, edit the `CFG` constant in `src/config.rs`:
+To change the look, edit `CFG`:
 
 ```rust
-const CFG: FireConfig = FireConfig {
+pub const CFG: FireConfig = FireConfig {
     min_intensity: 16,
     max_intensity: 255,
     breath_period_ms: 4_000,
@@ -60,66 +71,84 @@ const CFG: FireConfig = FireConfig {
 };
 ```
 
-`CFG` is a `const`, so the compiler folds every derived value into the binary — the configuration costs no RAM and no runtime cycles. Invalid combinations (for example a `breath_period_ms` so long that the envelope step truncates to zero and the breathing would freeze) fail the build with an explanatory message instead of producing dead firmware.
+An invalid combination, for example a `breath_period_ms` so long that the envelope step truncates
+to zero, fails the build with an explanatory message instead of producing dead firmware.
 
-## Build & Flash
+## Build and flash
 
-- Toolchain target: `thumbv8m.main-none-eabihf`
-- `rust-toolchain.toml` pins the stable channel and installs the target automatically, so no manual `rustup target add` is needed.
-- Runner is configured in `.cargo/config.toml` to use `picotool`.
+Requires [rustup](https://rustup.rs) and, to flash, [picotool](https://github.com/raspberrypi/picotool)
+on your `PATH`. `rust-toolchain.toml` selects the stable toolchain (1.99.1 or newer) and installs
+the `thumbv8m.main-none-eabihf` target on first use.
 
-Steps:
+1. Hold BOOTSEL while plugging in the Pico 2.
+2. Build and flash in one step: `cargo run --release`.
 
-1. Build: `cargo build --release`
-2. Flash/load (via runner): `cargo run --release`
-
-Alternatively, you can use `picotool` directly with the built `.elf` from `target/thumbv8m.main-none-eabihf/release/blaustein-led`.
-
-### Build profiles
+`cargo run` uses the `picotool` runner from [`.cargo/config.toml`](.cargo/config.toml). To flash by
+hand, build with `cargo build --release` and load
+`target/thumbv8m.main-none-eabihf/release/blaustein-led` with `picotool load -x -t elf`. Every CI
+run also uploads that image as the `blaustein-led-elf` artifact.
 
 | Profile | Command | Purpose |
 | --- | --- | --- |
-| `release` | `cargo build --release` | Deployment. No defmt stack; panics reset the board so the installation recovers unattended. |
-| `release-debug` | `cargo build --profile release-debug --features debug` | Optimized build that keeps the symbol table `defmt` needs to decode RTT output. Panics halt for an attached debugger. |
+| `release` | `cargo build --release` | Deployment. No defmt stack; a panic resets the board so the installation recovers unattended. |
+| `release-debug` | `cargo build --profile release-debug --features debug` | Optimised build that keeps the symbol table defmt needs to decode RTT output. A panic halts for an attached debugger. |
 | `dev` | `cargo build` | `opt-level = 1`, full debug info. |
 
-Set the log level for `debug` builds with `DEFMT_LOG` (defaults to `info` in `.cargo/config.toml`).
+Set the log level of `debug` builds with `DEFMT_LOG` (default `info`, set in `.cargo/config.toml`).
 
-### Code quality
+## Development
 
-`Cargo.toml` denies every Clippy group (`all`, `pedantic`, `nursery`, `cargo`), a set of restriction lints that fit an integer-only `no_std` firmware, and all compiler warnings. `rustfmt.toml` enables the strict formatting options, most of which need the nightly `rustfmt`; the code itself builds on stable.
+| Step | Command |
+| --- | --- |
+| Format | `cargo +nightly fmt --all` |
+| Lint the firmware | `cargo clippy --release` and `cargo clippy --profile release-debug --features debug` |
+| Lint the effect crate and its tests | `cargo clippy-host` |
+| Test | `cargo test-host` |
+| Check dependencies | `cargo deny check` |
 
-1. Format: `cargo +nightly fmt`
-2. Lint the firmware: `cargo clippy --release` and `cargo clippy --profile release-debug --features debug`
-3. Lint the effect crate and its tests: `cargo clippy-host`
-4. Test: `cargo test-host`
+`Cargo.toml` denies every Clippy group (`all`, `pedantic`, `nursery`, `cargo`), a set of
+restriction lints that fit an integer-only `no_std` firmware, and all compiler warnings.
+`rustfmt.toml` enables the strict formatting options, most of which need the nightly `rustfmt`;
+the code itself builds on stable. CI runs all of the above on every pull request.
 
 ### Project layout
 
-- `fire-effect/`: the flicker simulation, gamma table and PWM timing. It has no hardware dependencies, so its unit tests run on the host (`cargo test-host`, an alias for `cargo test --package fire-effect --target host-tuple`).
-- `src/`: the firmware. `config.rs` holds the installed `CFG`; `main.rs` wires the simulation to the PWM slices, the watchdog and the panic handler.
+| Path | Content |
+| --- | --- |
+| [`fire-effect/`](fire-effect/) | The flicker simulation, gamma curve and PWM timing. No hardware dependencies, so its tests run on the host (`cargo test-host`, an alias for `cargo test --package fire-effect --target host-tuple`). |
+| [`src/main.rs`](src/main.rs) | The firmware: wires the simulation to the PWM slices, the watchdog and the panic handler. |
+| [`src/config.rs`](src/config.rs) | The installed `CFG`. |
+| [`memory.x`](memory.x), [`build.rs`](build.rs) | Memory layout of the RP2350 and the linker setup. |
+| [`.github/`](.github/) | CI, repository gates, Dependabot, issue and pull request templates, security policy. |
 
-## Current Release Version
+## Documentation
 
-v1.0.0
+| Topic | Document |
+| --- | --- |
+| Contributing, checks and commit rules | [CONTRIBUTING.md](CONTRIBUTING.md) |
+| Reporting a vulnerability | [.github/SECURITY.md](.github/SECURITY.md) |
+| Code of Conduct | [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) |
+| Release notes | [CHANGELOG.md](CHANGELOG.md) |
+| Instructions for coding agents | [CLAUDE.md](CLAUDE.md) |
+
+## Contributing
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) first: the checks, the tests and the sign-off of every
+commit. Security issues are reported as described in [.github/SECURITY.md](.github/SECURITY.md).
+Everyone taking part is bound by the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## License
 
-Blaustein LED is licensed under the MIT License.
-You can find the license text under [LICENSE](LICENSE).
+Licensed under either of
 
-For more information about this license,
-visit [https://choosealicense.com/licenses/mit/](https://choosealicense.com/licenses/mit/).
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or
+  <https://www.apache.org/licenses/LICENSE-2.0>)
+- MIT licence ([LICENSE-MIT](LICENSE-MIT) or <https://opensource.org/licenses/MIT>)
 
-## Contribution
+at your option.
 
-- You can find the source code under [https://github.com/greluc/blaustein-led](https://github.com/greluc/blaustein-led).
-- Read [CONTRIBUTING](CONTRIBUTING.md) when you wish to contribute to this project.
-- Note that this project is subject to a Contributor [CODE OF CONDUCT](CODE_OF_CONDUCT.md).
-  By participating in this project, you agree to abide by its terms.
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in
+the work by you, as defined in the Apache-2.0 licence, shall be dual licensed as above, without any
+additional terms or conditions.
 
-## Team
-
-- Lucas Greuloch (@greluc)
-
-[<img src="Logo_Rust.svg" height="150"/>](https://www.rust-lang.org/)
+[<img src="Logo_Rust.svg" alt="Rust logo" height="96">](https://www.rust-lang.org/)
