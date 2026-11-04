@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2025 the Blaustein LED contributors
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
 # Cargo build output. Cargo.lock stays tracked: this crate produces a firmware
 # binary, and the lockfile keeps builds reproducible across clones.
 /target/

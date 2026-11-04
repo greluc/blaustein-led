@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2025 the Blaustein LED contributors
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
 [target.'cfg(all(target_arch = "arm", target_os = "none"))']
 runner = "picotool load -u -v -x -t elf"
 

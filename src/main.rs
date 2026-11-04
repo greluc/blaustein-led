@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2025 the Blaustein LED contributors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! Smooth, configurable campfire flicker for the LEDs of Burg Blaustein.
 //!
 //! Three LED channels are driven with high-frequency PWM from a single task: GPIO 16 and GPIO 17

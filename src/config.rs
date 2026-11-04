@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 the Blaustein LED contributors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! Fire effect configuration of the Burg Blaustein installation.
 
 use fire_effect::{FireConfig, FireProfile};
