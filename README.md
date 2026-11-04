@@ -24,12 +24,13 @@ The source lives at [github.com/greluc/blaustein-led](https://github.com/greluc/
 - **Flame.** A slow triangular "breathing" envelope, per-tick random jitter, sporadic flares that
   decay exponentially, and an output EMA that smooths it all, mapped through a square-law gamma
   curve to 25 kHz PWM.
-- **Sixteen channels, one task.** GPIO 7 to GPIO 22 reach all sixteen PWM outputs of the
-  Pico 2, each with its own flame. One task and one `Ticker` drive them all, so the cadence never
-  drifts. Pins without an LED simply stay unconnected.
+- **One to sixteen channels, one task.** GPIO 7 to GPIO 22 reach all sixteen PWM outputs of the
+  Pico 2, each with its own flame. `CHANNELS` sets how many are in use; only those get a
+  simulation, a PWM slice and RAM. One task and one `Ticker` drive them all, so the cadence never
+  drifts.
 - **Integer only.** No floating point and no allocation. The configuration is a compile-time
-  constant, so every derived value folds into the binary; the release image uses about 4.9 KB of
-  flash for code and constants and 872 bytes of static RAM.
+  constant, so every derived value folds into the binary. The release image uses about 4.1 KB of
+  flash and 464 bytes of static RAM for one LED, and 5.1 KB and 880 bytes for sixteen.
 - **Unattended.** In deployed builds a panic resets the chip instead of halting, and a watchdog
   resets it if the effect stops updating. Invalid configurations fail the build.
 
@@ -38,7 +39,8 @@ The source lives at [github.com/greluc/blaustein-led](https://github.com/greluc/
 - Board: Raspberry Pi Pico 2 (RP2350A).
 - LEDs: orange LEDs look best; any LED works.
 - Pins: GPIO 7 to GPIO 22, one LED each. GPIO `n` is PWM channel `n mod 16`, so this block uses
-  every PWM output of the RP2350A exactly once:
+  every PWM output of the RP2350A exactly once. `CHANNELS` LEDs are used in the order GPIO 16 to
+  GPIO 22, then GPIO 7 to GPIO 15 (slice by slice, A before B):
 
   | PWM slice | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
   | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -71,6 +73,13 @@ smooth, warm indoor campfire.
 | `pulse_decay_q8` | `u8` | Q8 decay factor of a flare per tick. 224 decays fast, 248 slower. |
 | `smooth_q8` | `u8` | Q8 smoothing factor of the output, at least 1. Smaller is smoother and slower to react. |
 | `tick_ms` | `u32` | Update interval in milliseconds. 10 to 20 ms works well. |
+
+Set the number of LEDs with `CHANNELS` (1 to 16) in the same file. One LED uses GPIO 16, three use
+GPIO 16 to 18, sixteen use GPIO 7 to 22; a value outside 1 to 16 fails the build:
+
+```rust
+pub const CHANNELS: usize = 3;
+```
 
 To change the look, edit `CFG`:
 
