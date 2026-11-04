@@ -2,32 +2,22 @@
 
 use crate::fixed_point::Q16;
 
-/// Number of intensity levels.
-const LEVELS: usize = 256;
+/// Square of the highest intensity; normalizes the gamma curve to full scale.
+const MAX_SQUARED: u32 = 255 * 255;
 
-/// Gamma (square-law) brightness table normalized to Q16, in flash and shared by all channels.
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "each entry is at most `u16::MAX * 255² / 255²`, which fits in u16"
-)]
-const GAMMA_Q16: [u16; LEVELS] = {
-    const MAX_SQUARED: u64 = ((LEVELS - 1) * (LEVELS - 1)) as u64;
-    let mut table = [0_u16; LEVELS];
-    let mut index = 0;
-    while index < LEVELS {
-        let squared = (index * index) as u64;
-        // Adding half the divisor rounds to nearest.
-        table[index] = ((squared * u16::MAX as u64 + MAX_SQUARED / 2) / MAX_SQUARED) as u16;
-        index += 1;
-    }
-    table
-};
+/// Returns the square-law brightness of `intensity` in Q16, rounded to nearest.
+///
+/// Computed instead of looked up: one multiply and one hardware divide cost less than the
+/// 512-byte table they replace. `255² * u16::MAX` still fits in u32.
+fn gamma_q16(intensity: u8) -> u32 {
+    let squared = u32::from(intensity) * u32::from(intensity);
+    (squared * u32::from(u16::MAX) + MAX_SQUARED / 2) / MAX_SQUARED
+}
 
 /// Maps an intensity to a PWM compare value in `0..=top`.
 #[must_use]
 pub fn duty_for(intensity: u8, top: u16) -> u16 {
-    let gamma = u32::from(GAMMA_Q16[usize::from(intensity)]);
-    ((gamma * (u32::from(top) + 1)) >> Q16) as u16
+    ((gamma_q16(intensity) * (u32::from(top) + 1)) >> Q16) as u16
 }
 
 /// Returns the PWM `top` value for a slice clocked at `clock_hz` with an integer divider.
@@ -48,7 +38,7 @@ pub fn calculate_top(clock_hz: u32, desired_freq_hz: u32, divider: u8) -> u16 {
 mod tests {
     //! Gamma table, duty mapping and PWM timing.
 
-    use super::{GAMMA_Q16, calculate_top, duty_for};
+    use super::{calculate_top, duty_for, gamma_q16};
 
     /// System clock of the RP2350 at its default configuration.
     const CLK_SYS_HZ: u32 = 150_000_000;
@@ -56,16 +46,36 @@ mod tests {
     /// `top` values spanning the full counter range.
     const TOPS: [u16; 5] = [0, 1, 255, 5_999, u16::MAX];
 
-    /// The gamma table runs from zero to full scale without decreasing.
+    /// The gamma curve runs from zero to full scale without decreasing.
     #[test]
     fn gamma_is_monotonic_from_zero_to_full_scale() {
-        assert_eq!(GAMMA_Q16.first(), Some(&0), "gamma must start at zero");
+        assert_eq!(gamma_q16(0), 0, "gamma must start at zero");
         assert_eq!(
-            GAMMA_Q16.last(),
-            Some(&u16::MAX),
+            gamma_q16(u8::MAX),
+            u32::from(u16::MAX),
             "gamma must end at full scale"
         );
-        assert!(GAMMA_Q16.is_sorted(), "gamma must not decrease");
+        let mut previous = 0;
+        for intensity in 0..=u8::MAX {
+            let gamma = gamma_q16(intensity);
+            assert!(gamma >= previous, "gamma decreased at {intensity}");
+            previous = gamma;
+        }
+    }
+
+    /// The gamma curve matches the rounded square law computed in 64 bits.
+    #[test]
+    fn gamma_matches_square_law() {
+        let max_squared = u64::from(u8::MAX) * u64::from(u8::MAX);
+        for intensity in 0..=u8::MAX {
+            let squared = u64::from(intensity) * u64::from(intensity);
+            let expected = (squared * u64::from(u16::MAX) + max_squared / 2) / max_squared;
+            assert_eq!(
+                u64::from(gamma_q16(intensity)),
+                expected,
+                "gamma differs at {intensity}"
+            );
+        }
     }
 
     /// Duty values stay within `0..=top` and reach both ends.
