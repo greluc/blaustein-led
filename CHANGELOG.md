@@ -9,6 +9,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Up to sixteen LED channels instead of three: GPIO 7 to GPIO 22 reach every PWM output of the
+  RP2350A once, each with its own flame. The existing LEDs on GPIO 16, 17 and 18 stay where they
+  are. `CHANNELS` in `src/config.rs` (1 to 16) sets how many are used; only those get a
+  simulation, a PWM slice and RAM, and a value outside the range fails the build.
+  Seeds come from `channel_seed`, a MurmurHash3 mix of the channel index, so every channel flickers
+  differently; the first three channels therefore flicker differently than before.
 - Watchdog that resets the board if the effect stops updating, and a panic handler that resets
   instead of halting in deployed builds. Debug builds keep `panic-probe`, so an attached debugger
   can inspect faults.
@@ -17,8 +23,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `release-debug` build profile that keeps the symbol table defmt needs to decode RTT output.
 - `rust-toolchain.toml` selecting the stable toolchain and installing the bare-metal target.
 - `fire-effect` workspace crate holding the simulation, gamma curve and PWM timing without hardware
-  dependencies, with 24 host-run unit tests (`cargo test-host`): configuration validation, envelope
-  bounds and period, jitter range, determinism, flares, gamma curve, duty range, `top`, and a
+  dependencies, with 26 host-run unit tests (`cargo test-host`): configuration validation, envelope
+  bounds and period, jitter range, determinism, channel seeds, flares, gamma curve, duty range, `top`, and a
   regression fingerprint of the baseline flicker.
 - Strict quality gates: every Clippy group (`all`, `pedantic`, `nursery`, `cargo`), a curated set
   of restriction lints and all compiler warnings are denied; `rustfmt.toml` enables the strict
@@ -45,7 +51,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Make the configuration a compile-time constant, so all derived values are folded into the
   binary; `FireState` is generic over a `FireProfile` that supplies it.
 - Compute the square-law gamma curve instead of keeping a table, and build releases with
-  `opt-level = "z"`: the release image uses 3340 bytes of flash for code and constants.
+  `opt-level = "z"`: with three channels the release image used 3340 bytes of flash for code and constants, with sixteen it uses 5124.
 - Add `[profile.dev]` with `opt-level = 1` and default `DEFMT_LOG` to `info`.
 - Check out text files with LF line endings on every platform (`.gitattributes`).
 - Rewrite `README.md`, `CONTRIBUTING.md` and the security policy for the current project, and

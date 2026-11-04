@@ -15,4 +15,4 @@ mod fixed_point;
 pub mod pwm;
 
 pub use config::{FireConfig, FireProfile};
-pub use fire_state::FireState;
+pub use fire_state::{FireState, channel_seed};

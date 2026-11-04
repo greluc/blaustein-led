@@ -6,4 +6,4 @@ allow-panic-in-tests = true
 allow-unwrap-in-tests = true
 too-many-lines-threshold = 60
 cognitive-complexity-threshold = 15
-doc-valid-idents = ["RP2350", "RP235x", "..", "picotool"]
+doc-valid-idents = ["MurmurHash3", "RP2350", "RP235x", "..", "picotool"]

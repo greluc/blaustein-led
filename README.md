@@ -10,7 +10,7 @@
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-3.0-ff69b4.svg)](CODE_OF_CONDUCT.md)
 
 Blaustein LED is the firmware for the campfire lights of Burg Blaustein: a smooth, configurable
-flicker on three LEDs, driven by a Raspberry Pi Pico 2 (RP2350). Each LED runs its own simulation
+flicker on up to sixteen LEDs, driven by a Raspberry Pi Pico 2 (RP2350). Each LED runs its own simulation
 with its own seed, so the flames never move in lockstep, and a watchdog brings the effect back on
 its own if it ever stops.
 
@@ -24,11 +24,13 @@ The source lives at [github.com/greluc/blaustein-led](https://github.com/greluc/
 - **Flame.** A slow triangular "breathing" envelope, per-tick random jitter, sporadic flares that
   decay exponentially, and an output EMA that smooths it all, mapped through a square-law gamma
   curve to 25 kHz PWM.
-- **Three channels, one task.** GPIO 16 and 17 share PWM slice 0, GPIO 18 uses slice 1. One task
-  and one `Ticker` drive all three, so the cadence never drifts.
+- **One to sixteen channels, one task.** GPIO 7 to GPIO 22 reach all sixteen PWM outputs of the
+  Pico 2, each with its own flame. `CHANNELS` sets how many are in use; only those get a
+  simulation, a PWM slice and RAM. One task and one `Ticker` drive them all, so the cadence never
+  drifts.
 - **Integer only.** No floating point and no allocation. The configuration is a compile-time
-  constant, so every derived value folds into the binary; the release image uses about 3.3 KB of
-  flash for code and constants and 480 bytes of static RAM.
+  constant, so every derived value folds into the binary. The release image uses about 4.1 KB of
+  flash and 464 bytes of static RAM for one LED, and 5.1 KB and 880 bytes for sixteen.
 - **Unattended.** In deployed builds a panic resets the chip instead of halting, and a watchdog
   resets it if the effect stops updating. Invalid configurations fail the build.
 
@@ -36,10 +38,21 @@ The source lives at [github.com/greluc/blaustein-led](https://github.com/greluc/
 
 - Board: Raspberry Pi Pico 2 (RP2350A).
 - LEDs: orange LEDs look best; any LED works.
-- Pins: GPIO 16 and GPIO 17 (PWM slice 0, channels A and B), GPIO 18 (PWM slice 1, channel A).
+- Pins: GPIO 7 to GPIO 22, one LED each. GPIO `n` is PWM channel `n mod 16`, so this block uses
+  every PWM output of the RP2350A exactly once. `CHANNELS` LEDs are used in the order GPIO 16 to
+  GPIO 22, then GPIO 7 to GPIO 15 (slice by slice, A before B):
+
+  | PWM slice | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
+  | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+  | Channel A | GPIO 16 | GPIO 18 | GPIO 20 | GPIO 22 | GPIO 8 | GPIO 10 | GPIO 12 | GPIO 14 |
+  | Channel B | GPIO 17 | GPIO 19 | GPIO 21 | GPIO 7 | GPIO 9 | GPIO 11 | GPIO 13 | GPIO 15 |
+
 - Wiring per channel: GPIO → series resistor (330 Ω to 1 kΩ) → LED anode; LED cathode → GND.
 
-Use a series resistor on every channel. The firmware assumes active-high LEDs.
+Use a series resistor on every channel. The firmware assumes active-high LEDs. A GPIO drives only
+a few milliamperes, and the sum over all pins is limited as well; with more than a handful of LEDs,
+or for brighter ones, switch each LED through a small NPN transistor or N-channel MOSFET (or use an
+LED driver) and feed it from the 5 V or 3.3 V supply instead of the pin.
 
 ## Configuration
 
@@ -60,6 +73,13 @@ smooth, warm indoor campfire.
 | `pulse_decay_q8` | `u8` | Q8 decay factor of a flare per tick. 224 decays fast, 248 slower. |
 | `smooth_q8` | `u8` | Q8 smoothing factor of the output, at least 1. Smaller is smoother and slower to react. |
 | `tick_ms` | `u32` | Update interval in milliseconds. 10 to 20 ms works well. |
+
+Set the number of LEDs with `CHANNELS` (1 to 16) in the same file. One LED uses GPIO 16, three use
+GPIO 16 to 18, sixteen use GPIO 7 to 22; a value outside 1 to 16 fails the build:
+
+```rust
+pub const CHANNELS: usize = 3;
+```
 
 To change the look, edit `CFG`:
 
