@@ -20,6 +20,7 @@ pub const CFG: FireConfig = FireConfig {
 const _: () = CFG.validate();
 
 /// The flame look installed at Burg Blaustein.
+#[derive(Clone, Copy)]
 pub struct Blaustein;
 
 impl FireProfile for Blaustein {

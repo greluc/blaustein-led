@@ -13,8 +13,9 @@ with Embassy. A Cargo workspace with two packages:
   validation, `FireProfile`, the generic `FireState<P>` simulation, the gamma curve and the PWM
   `top` calculation. All logic and all tests live here.
 - `/` (`blaustein-led`): the binary for `thumbv8m.main-none-eabihf`. `src/config.rs` holds the
-  installed `CFG` and the `Blaustein` profile; `src/main.rs` wires PWM slices 0 and 1
-  (GPIO 16, 17, 18), the watchdog, the panic handler and the picotool metadata.
+  installed `CFG` and the `Blaustein` profile; `src/main.rs` wires PWM slices 0 to 7 (sixteen
+  channels on GPIO 7 to GPIO 22, GPIO `n` = channel `n mod 16`), the watchdog, the panic handler
+  and the picotool metadata.
 
 ## Commands
 
