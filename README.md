@@ -31,7 +31,7 @@ Note: Ensure you use a proper series resistor on every channel. The code assumes
 
 ## Configuration
 
-All parameters live in `src/config.rs` in the `FireConfig` struct and can be tweaked to taste. Defaults are chosen for a smooth, warm indoor campfire.
+The parameters are the fields of the `FireConfig` struct in `fire-effect/src/config.rs`; the installed values are the `CFG` constant in `src/config.rs`. Defaults are chosen for a smooth, warm indoor campfire.
 
 Parameters:
 
@@ -90,7 +90,14 @@ Set the log level for `debug` builds with `DEFMT_LOG` (defaults to `info` in `.c
 `Cargo.toml` denies every Clippy group (`all`, `pedantic`, `nursery`, `cargo`), a set of restriction lints that fit an integer-only `no_std` firmware, and all compiler warnings. `rustfmt.toml` enables the strict formatting options, most of which need the nightly `rustfmt`; the code itself builds on stable.
 
 1. Format: `cargo +nightly fmt`
-2. Lint: `cargo clippy --release` and `cargo clippy --profile release-debug --features debug`
+2. Lint the firmware: `cargo clippy --release` and `cargo clippy --profile release-debug --features debug`
+3. Lint the effect crate and its tests: `cargo clippy-host`
+4. Test: `cargo test-host`
+
+### Project layout
+
+- `fire-effect/`: the flicker simulation, gamma table and PWM timing. It has no hardware dependencies, so its unit tests run on the host (`cargo test-host`, an alias for `cargo test --package fire-effect --target host-tuple`).
+- `src/`: the firmware. `config.rs` holds the installed `CFG`; `main.rs` wires the simulation to the PWM slices, the watchdog and the panic handler.
 
 ## Current Release Version
 

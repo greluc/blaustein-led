@@ -1,0 +1,20 @@
+[package]
+name = "fire-effect"
+description = "Integer-only campfire flicker simulation for the LEDs of Burg Blaustein."
+keywords = ["led", "embedded", "no-std"]
+categories = ["embedded", "no-std"]
+readme = "../README.md"
+version.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lib]
+bench = false
+
+[lints]
+workspace = true

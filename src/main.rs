@@ -11,9 +11,6 @@
 #![no_main]
 
 mod config;
-mod fire_state;
-mod fixed_point;
-mod pwm;
 
 #[cfg(not(feature = "debug"))]
 use core::panic::PanicInfo;
@@ -23,18 +20,21 @@ use cortex_m::peripheral::SCB;
 #[cfg(feature = "debug")]
 use defmt_rtt as _;
 use embassy_executor::Spawner;
-use embassy_rp::Peri;
 use embassy_rp::binary_info::{self, EntryAddr};
 use embassy_rp::config::Config;
 use embassy_rp::peripherals::{PIN_16, PIN_17, PIN_18, PWM_SLICE0, PWM_SLICE1, WATCHDOG};
 use embassy_rp::pwm::{Config as PwmConfig, Pwm};
 use embassy_rp::watchdog::Watchdog;
+use embassy_rp::{Peri, clocks};
 use embassy_time::{Duration, Ticker};
+use fire_effect::{FireState, pwm};
 #[cfg(feature = "debug")]
 use panic_probe as _;
 
-use crate::config::CFG;
-use crate::fire_state::FireState;
+use crate::config::{Blaustein, CFG};
+
+/// Fire simulation of one channel with the installed flame look.
+type Flame = FireState<Blaustein>;
 
 /// Program metadata for `picotool info`.
 #[expect(
@@ -101,7 +101,7 @@ async fn fire_task(
     slice1: Peri<'static, PWM_SLICE1>,
     pin_18: Peri<'static, PIN_18>,
 ) -> ! {
-    let top = pwm::calculate_top(CFG.pwm_freq_hz, CFG.pwm_divider);
+    let top = pwm::calculate_top(clocks::clk_sys_freq(), CFG.pwm_freq_hz, CFG.pwm_divider);
 
     let mut config = PwmConfig::default();
     config.top = top;
@@ -111,9 +111,9 @@ async fn fire_task(
     let mut pwm_slice1 = Pwm::new_output_a(slice1, pin_18, config.clone());
 
     // Distinct seeds keep the three flames from flickering in sync.
-    let mut flame_16 = const { FireState::new(0xc0ff_ee01) };
-    let mut flame_17 = const { FireState::new(0x1234_5678) };
-    let mut flame_18 = const { FireState::new(0xdead_beef) };
+    let mut flame_16 = const { Flame::new(0xc0ff_ee01) };
+    let mut flame_17 = const { Flame::new(0x1234_5678) };
+    let mut flame_18 = const { Flame::new(0xdead_beef) };
 
     let mut watchdog = Watchdog::new(watchdog);
     watchdog.pause_on_debug(true);

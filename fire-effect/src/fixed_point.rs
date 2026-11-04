@@ -1,4 +1,4 @@
-//! Fixed-point formats shared by the effect and the PWM mapping.
+//! Fixed-point formats shared by the simulation and the PWM mapping.
 
 /// Fractional bits of a Q8 value.
 pub const Q8: u32 = 8;

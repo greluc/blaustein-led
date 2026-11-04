@@ -1,6 +1,11 @@
 [target.'cfg(all(target_arch = "arm", target_os = "none"))']
 runner = "picotool load -u -v -x -t elf"
 
+# The effect crate has no hardware dependencies, so its tests run on the host.
+[alias]
+test-host = "test --package fire-effect --target host-tuple"
+clippy-host = "clippy --package fire-effect --all-targets --target host-tuple"
+
 [build]
 target = "thumbv8m.main-none-eabihf"
 

@@ -1,17 +1,31 @@
-[package]
-name = "blaustein-led"
+[workspace]
+members = ["fire-effect"]
+
+[workspace.package]
 version = "1.0.0"
 authors = ["Lucas Greuloch (greluc) <lucas.greuloch@gmail.com>"]
-description = "Controls the LEDs of Burg Blaustein."
-keywords = ["led", "embedded"]
-categories = ["embedded"]
 homepage = "https://github.com/greluc/blaustein-led"
 repository = "https://github.com/greluc/blaustein-led"
 license = "MIT"
-readme = "README.md"
 edition = "2024"
 # Current stable toolchain.
 rust-version = "1.99.1"
+publish = false
+
+[package]
+name = "blaustein-led"
+description = "Controls the LEDs of Burg Blaustein."
+keywords = ["led", "embedded"]
+categories = ["embedded"]
+readme = "README.md"
+version.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
 
 [features]
 # Default build contains no defmt stack to minimize size and overhead. It uses a
@@ -33,6 +47,7 @@ debug = [
 ]
 
 [dependencies]
+fire-effect = { path = "fire-effect" }
 embassy-executor = { version = "0.10.0", features = [
     "platform-cortex-m",
     "executor-thread",
@@ -58,7 +73,10 @@ name = "blaustein-led"
 test = false
 bench = false
 
-[lints.rust]
+[lints]
+workspace = true
+
+[workspace.lints.rust]
 future_incompatible = { level = "deny", priority = -1 }
 keyword_idents = { level = "deny", priority = -1 }
 let_underscore = { level = "deny", priority = -1 }
@@ -85,7 +103,7 @@ unused_macro_rules = "deny"
 unused_qualifications = "deny"
 variant_size_differences = "deny"
 
-[lints.clippy]
+[workspace.lints.clippy]
 all = { level = "deny", priority = -1 }
 cargo = { level = "deny", priority = -1 }
 nursery = { level = "deny", priority = -1 }
