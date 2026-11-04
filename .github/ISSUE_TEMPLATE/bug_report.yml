@@ -1,0 +1,81 @@
+# SPDX-FileCopyrightText: 2026 the Blaustein LED contributors
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+name: Bug report
+description: The firmware does not build, does not flash, or the LEDs do not behave as documented.
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Search the [open issues](https://github.com/greluc/blaustein-led/issues) first, and never put a security problem here: use the private reporting described in `.github/SECURITY.md`.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The commands you ran and the wiring, from a fresh clone.
+      placeholder: |
+        1. cargo build --release
+        2. cargo run --release
+        3. ...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The release tag, or the commit SHA for a build from source.
+      placeholder: v1.0.0 or 1a2b3c4
+    validations:
+      required: true
+
+  - type: dropdown
+    id: profile
+    attributes:
+      label: Build profile
+      options:
+        - release
+        - release-debug (--features debug)
+        - dev
+        - not built (prebuilt image)
+    validations:
+      required: true
+
+  - type: input
+    id: board
+    attributes:
+      label: Board and LEDs
+      description: The board (for example Raspberry Pi Pico 2), the LEDs and the series resistors.
+    validations:
+      required: true
+
+  - type: input
+    id: toolchain
+    attributes:
+      label: Host and toolchain
+      description: Operating system, output of `rustc --version` and `picotool version`.
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Changes to CFG
+      description: The `CFG` constant from `src/config.rs`, if you changed it.
+      render: rust
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Build output or defmt log
+      description: Paste the compiler error or, for a `release-debug` build, the defmt output.
+      render: text

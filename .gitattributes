@@ -1,2 +1,13 @@
+# SPDX-FileCopyrightText: 2026 the Blaustein LED contributors
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
 * text=auto eol=lf
+
+*.png binary
+*.jpg binary
 *.zip binary
+*.uf2 binary
+*.elf binary
+*.bin binary
+
+Cargo.lock -diff linguist-generated
