@@ -7,6 +7,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.0.0](https://github.com/greluc/blaustein-led/releases/tag/v2.0.0) - 2026-11-04
+
 ### Added
 
 - Up to sixteen LED channels instead of three: GPIO 7 to GPIO 22 reach every PWM output of the
@@ -97,4 +99,4 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `FireConfig` parameters to tune the look (breathing, jitter, pulse, smoothing, timing).
 - Documentation: hardware wiring, configuration guide, and build and flash instructions.
 
-[Unreleased]: https://github.com/greluc/blaustein-led/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/greluc/blaustein-led/compare/v2.0.0...HEAD
