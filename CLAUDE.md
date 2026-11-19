@@ -9,11 +9,13 @@ agent needs and does not repeat it.
 Firmware for the campfire LEDs of Burg Blaustein on a Raspberry Pi Pico 2 (RP2350), written in Rust
 with Embassy. A Cargo workspace with two packages:
 
-- `fire-effect/`: `no_std` library without dependencies. `FireConfig` and its compile-time
-  validation, `FireProfile`, the generic `FireState<P>` simulation, the gamma curve and the PWM
-  `top` calculation. All logic and all tests live here.
+- `fire-effect/`: `no_std` library without dependencies. `InstallationConfig` and `Installation`
+  (PWM and tick), `FireConfig` (the look of a role), its presets and compile-time validation,
+  `FireProfile`, the generic `FireState<S, P>` simulation, the `Follower`, the 16-bit `Intensity`,
+  the gamma curve and the PWM `top` calculation. All logic and all tests live here.
 - `/` (`blaustein-led`): the binary for `thumbv8m.main-none-eabihf`. `src/config.rs` holds the
-  installed `CFG`, the number of LEDs `CHANNELS` (1 to 16) and the `Blaustein` profile;
+  installation-wide `INSTALLATION`, the installed look `CFG`, the number of LEDs `CHANNELS` (1 to
+  16), the `Blaustein` installation and the `Campfire` profile;
   `src/main.rs` wires only the PWM slices in use (channels on GPIO 7 to GPIO 22, GPIO `n` =
   channel `n mod 16`), the watchdog, the panic handler and the picotool metadata.
 

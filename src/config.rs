@@ -3,7 +3,7 @@
 
 //! Fire effect configuration of the Burg Blaustein installation.
 
-use fire_effect::{FireConfig, FireProfile};
+use fire_effect::{FireConfig, FireProfile, Installation, InstallationConfig};
 
 /// Number of LEDs, 1 to 16, in the pin order GPIO 16 to GPIO 22, then GPIO 7 to GPIO 15.
 ///
@@ -11,24 +11,29 @@ use fire_effect::{FireConfig, FireProfile};
 /// unconfigured.
 pub const CHANNELS: usize = 16;
 
-/// Active fire effect configuration.
+/// PWM timing and update tick, shared by every channel.
+pub const INSTALLATION: InstallationConfig = InstallationConfig::new();
+
+/// Look of every channel.
 ///
-/// A `const`, so the optimizer folds every derived quantity (envelope step, thresholds, decay
-/// factors) into immediates.
-pub const CFG: FireConfig = FireConfig {
-    max_intensity: 128,
-    jitter_max: 25,
-    pulse_prob: 48,
-    breath_period_ms: 5_000,
-    ..FireConfig::new()
-};
+/// A `const`, so the optimizer folds every derived quantity (glide rates, depths, gust chance)
+/// into immediates.
+pub const CFG: FireConfig = FireConfig::HEARTH;
 
-const _: () = CFG.validate();
+const _: () = CFG.validate(&INSTALLATION);
 
-/// The flame look installed at Burg Blaustein.
+/// The Burg Blaustein installation.
 #[derive(Clone, Copy)]
 pub struct Blaustein;
 
-impl FireProfile for Blaustein {
+impl Installation for Blaustein {
+    const CONFIG: InstallationConfig = INSTALLATION;
+}
+
+/// The flame look of every channel.
+#[derive(Clone, Copy)]
+pub struct Campfire;
+
+impl FireProfile for Campfire {
     const CONFIG: FireConfig = CFG;
 }

@@ -10,9 +10,10 @@
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-3.0-ff69b4.svg)](CODE_OF_CONDUCT.md)
 
 Blaustein LED is the firmware for the campfire lights of Burg Blaustein: a smooth, configurable
-flicker on up to sixteen LEDs, driven by a Raspberry Pi Pico 2 (RP2350). Each LED runs its own simulation
-with its own seed, so the flames never move in lockstep, and a watchdog brings the effect back on
-its own if it ever stops.
+flicker on up to sixteen LEDs, driven by a Raspberry Pi Pico 2 (RP2350). Each LED runs its own
+simulation with its own seed; its motions have no fixed period and no phase shared with another
+LED, so the flames never move in lockstep. A watchdog brings the effect back on its own if it ever
+stops.
 
 The current release is **[2.0.0](https://github.com/greluc/blaustein-led/releases/tag/v2.0.0)**.
 Blaustein LED is written in Rust with [Embassy](https://embassy.dev) and licensed under either of
@@ -21,16 +22,23 @@ The source lives at [github.com/greluc/blaustein-led](https://github.com/greluc/
 
 ## What it does
 
-- **Flame.** A slow triangular "breathing" envelope, per-tick random jitter, sporadic flares that
-  decay exponentially, and an output EMA that smooths it all, mapped through a square-law gamma
-  curve to 25 kHz PWM.
+- **Flame.** Three layers of smoothly interpolated value noise pull the light below its peak: a
+  slow swell, a faster sway and a fast flicker. Each layer glides to a new random level after a
+  random time from its configured range, easing in and out, so nothing repeats and no two LEDs
+  share a phase. Occasional gusts deepen the flicker for a moment. The result is a 16-bit linear
+  intensity, mapped through a square-law gamma curve to 25 kHz PWM.
+- **Light roles.** Presets for a hearth, a torch, a candle, embers and ambient room light, and a
+  follower for a second light driven by another channel, such as the red glow of the embers under
+  a fireplace flame. One parameter, `peak`, bounds the brightness of a role without changing how it
+  moves. For now every channel runs the hearth preset.
 - **One to sixteen channels, one task.** GPIO 7 to GPIO 22 reach all sixteen PWM outputs of the
   Pico 2, each with its own flame. `CHANNELS` sets how many are in use; only those get a
   simulation, a PWM slice and RAM. One task and one `Ticker` drive them all, so the cadence never
   drifts.
 - **Integer only.** No floating point and no allocation. The configuration is a compile-time
-  constant, so every derived value folds into the binary. The release image uses about 4.1 KB of
-  flash and 464 bytes of static RAM for one LED, and 5.1 KB and 880 bytes for sixteen.
+  constant, so every derived value folds into the binary. A channel needs 32 bytes of RAM, a
+  follower 4. The release image uses about 4.5 KB of flash and 480 bytes of static RAM for one LED,
+  and 5.5 KB and 1072 bytes for sixteen.
 - **Unattended.** In deployed builds a panic resets the chip instead of halting, and a watchdog
   resets it if the effect stops updating. Invalid configurations fail the build.
 
@@ -56,23 +64,49 @@ LED driver) and feed it from the 5 V or 3.3 V supply instead of the pin.
 
 ## Configuration
 
-The parameters are the fields of `FireConfig` in
-[`fire-effect/src/config.rs`](fire-effect/src/config.rs); the installed values are the `CFG`
-constant in [`src/config.rs`](src/config.rs). The baseline (`FireConfig::new()`) is tuned for a
-smooth, warm indoor campfire.
+The installed values live in [`src/config.rs`](src/config.rs). The types are defined in
+[`fire-effect/src/installation.rs`](fire-effect/src/installation.rs),
+[`fire-effect/src/config.rs`](fire-effect/src/config.rs) and
+[`fire-effect/src/follower.rs`](fire-effect/src/follower.rs); the presets in
+[`fire-effect/src/roles.rs`](fire-effect/src/roles.rs).
+
+`INSTALLATION` holds what every LED shares, so two roles cannot disagree on it:
 
 | Parameter | Type | Meaning |
 | --- | --- | --- |
 | `pwm_freq_hz` | `u32` | PWM frequency. 20 to 30 kHz keeps PWM inaudible and flicker-free. |
 | `pwm_divider` | `u8` | PWM clock divider, at least 1. Use the smallest value that keeps `top` within `u16`. |
-| `min_intensity` / `max_intensity` | `u8` | Breathing range (0..=255); `max_intensity` must be greater. Raise `min_intensity` if the LED is too dim. |
-| `breath_period_ms` | `u32` | One full up and down cycle of the breathing, at least one tick. 3 to 5 s feels natural. |
-| `jitter_max` | `u8` | Random per-tick jitter around the breathing (0..=64 typical). Larger looks more chaotic. |
-| `pulse_prob` | `u8` | Chance per tick (0..=255) of a short flare. 2 to 5 is subtle (about 1 %); 48 is about 19 %, a busy fire. |
-| `pulse_boost` | `u8` | Intensity a flare adds. |
-| `pulse_decay_q8` | `u8` | Q8 decay factor of a flare per tick. 224 decays fast, 248 slower. |
-| `smooth_q8` | `u8` | Q8 smoothing factor of the output, at least 1. Smaller is smoother and slower to react. |
-| `tick_ms` | `u32` | Update interval in milliseconds. 10 to 20 ms works well. |
+| `tick_ms` | `u32` | Update interval in milliseconds. 10 to 20 ms works well; the presets need at most 20. |
+
+`CFG` is the look of a light role, a `FireConfig`. Its output never exceeds `peak` and never falls
+below `peak × (1000 − total depth) / 1000`, where the total depth is the sum of the four depths.
+Because every depth is a share of `peak`, changing `peak` makes the light brighter or dimmer
+without changing how it moves:
+
+| Parameter | Type | Meaning |
+| --- | --- | --- |
+| `peak` | `Intensity` | The highest intensity the light ever reaches, for example `Intensity::from_permille(600)` for 60 % of full scale. The only bound of the brightness. |
+| `swell`, `sway`, `flicker` | `Layer` | Three layers of value noise, from slow to fast. |
+| `depth_permille` | `u16` | Of a layer: how far it pulls the light below `peak` at most, in thousandths of `peak`. 0 switches it off (`Layer::OFF`). |
+| `min_ms` / `max_ms` | `u32` | Of a layer: shortest and longest glide to the next random level. `min_ms` spans at least two ticks. |
+| `gust` | `Gust` | Occasional gusts that deepen the flicker; they follow the timing of `flicker`. `Gust::OFF` switches them off. |
+| `depth_permille` | `u16` | Of a gust: extra pull at its start in thousandths of `peak`. The four depths add up to at most 1000. |
+| `mean_interval_ms` | `u32` | Of a gust: mean time between two gusts. |
+| `duration_ms` | `u32` | Of a gust: time in which it fades out. |
+
+The presets are starting points tuned in a host simulation; adjust them on the real model:
+
+| Preset | Light | Peak | Look |
+| --- | --- | --- | --- |
+| `FireConfig::HEARTH` | Fireplace, cooking fire | 90 % | Irregular swell over 1 to 3 s, lively flicker, a gust every 8 s. |
+| `FireConfig::TORCH` | Torch | 75 % | Fast and restless, small swing, a strong gust every 6 s. |
+| `FireConfig::CANDLE` | Candle, oil lamp | 50 % | Almost steady, a short twitch every 20 s. |
+| `FireConfig::EMBER` | Embers, forge | 40 % | Very slow, small swing, no fast flicker. |
+| `FireConfig::AMBIENT` | Room light | 25 % | Constant dim level with about 5 % of unrest. |
+
+A `FollowerConfig` drives a light from another channel: it smooths the source's intensity with a
+time constant of `smoothing_ms` and outputs `floor + smoothed × gain_permille / 1000`, saturating
+at full scale. `FollowerConfig::HEARTH_GLOW` is the red glow of the embers under a hearth flame.
 
 Set the number of LEDs with `CHANNELS` (1 to 16) in the same file. One LED uses GPIO 16, three use
 GPIO 16 to 18, sixteen use GPIO 7 to 22; a value outside 1 to 16 fails the build:
@@ -81,22 +115,22 @@ GPIO 16 to 18, sixteen use GPIO 7 to 22; a value outside 1 to 16 fails the build
 pub const CHANNELS: usize = 3;
 ```
 
-To change the look, edit `CFG`:
+To change the look, pick another preset or override fields of one with struct update syntax:
 
 ```rust
+use fire_effect::{FireConfig, Gust, Intensity};
+
 pub const CFG: FireConfig = FireConfig {
-    min_intensity: 16,
-    max_intensity: 255,
-    breath_period_ms: 4_000,
-    jitter_max: 22,
-    pulse_prob: 4,
-    pulse_boost: 50,
-    ..FireConfig::new()
+    peak: Intensity::from_permille(600),
+    gust: Gust::OFF,
+    ..FireConfig::HEARTH
 };
 ```
 
-An invalid combination, for example a `breath_period_ms` so long that the envelope step truncates
-to zero, fails the build with an explanatory message instead of producing dead firmware.
+An invalid combination, for example depths that add up to more than 1000 permille or a glide
+shorter than two ticks, fails the build with an explanatory message such as
+`sway.min_ms must span at least two ticks, or the layer jumps instead of gliding` instead of
+producing dead firmware.
 
 ## Build and flash
 
@@ -139,9 +173,9 @@ the code itself builds on stable. CI runs all of the above on every pull request
 
 | Path | Content |
 | --- | --- |
-| [`fire-effect/`](fire-effect/) | The flicker simulation, gamma curve and PWM timing. No hardware dependencies, so its tests run on the host (`cargo test-host`, an alias for `cargo test --package fire-effect --target host-tuple`). |
+| [`fire-effect/`](fire-effect/) | The flicker simulation, the light-role presets, the follower, the gamma curve and PWM timing. No hardware dependencies, so its tests run on the host (`cargo test-host`, an alias for `cargo test --package fire-effect --target host-tuple`). |
 | [`src/main.rs`](src/main.rs) | The firmware: wires the simulation to the PWM slices, the watchdog and the panic handler. |
-| [`src/config.rs`](src/config.rs) | The installed `CFG`. |
+| [`src/config.rs`](src/config.rs) | The installed `INSTALLATION`, `CFG` and `CHANNELS`. |
 | [`memory.x`](memory.x), [`build.rs`](build.rs) | Memory layout of the RP2350 and the linker setup. |
 | [`.github/`](.github/) | CI, repository gates, Dependabot, issue and pull request templates, security policy. |
 | [`docs/design/`](docs/design/) | The logo (`logo.svg`) and the GitHub social preview (`social-preview.svg`, rendered to `social-preview.png`). |

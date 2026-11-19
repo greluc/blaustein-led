@@ -1,231 +1,431 @@
 // SPDX-FileCopyrightText: 2026 the Blaustein LED contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! Fire effect parameters and their validation.
+//! The look of a light role and its validation.
 
-use crate::fixed_point::Q16;
+use crate::fixed_point::{ONE_Q16, PERMILLE, per_tick};
+use crate::installation::InstallationConfig;
+use crate::intensity::Intensity;
 
-/// A fire effect configuration fixed at compile time.
+/// A light role fixed at compile time.
 pub trait FireProfile {
-    /// The parameters. [`FireState`](crate::FireState) rejects invalid ones at compile time.
+    /// The look. [`FireState`](crate::FireState) rejects an invalid one at compile time.
     const CONFIG: FireConfig;
 }
 
-/// Fire effect parameters.
+/// The look of a light role: how bright it gets at most and how it moves.
 ///
-/// These shape the look of the LED flame. All values are integers. Override fields of
-/// [`FireConfig::new`] with struct update syntax.
+/// The output starts at `peak` and four motions pull it down: three [`Layer`]s of value noise
+/// (`swell`, `sway`, `flicker`) and occasional [`Gust`]s that deepen the flicker. Every depth is
+/// given in thousandths of `peak`, so:
+///
+/// - the output never exceeds `peak`, the single bound of the brightness;
+/// - it never falls below `peak * (1000 - total depth) / 1000`, where the total depth is the sum of
+///   the four depths, at most 1000;
+/// - changing `peak` makes the light brighter or dimmer without changing how it moves.
+///
+/// Start from a preset ([`FireConfig::HEARTH`], [`FireConfig::TORCH`], [`FireConfig::CANDLE`],
+/// [`FireConfig::EMBER`], [`FireConfig::AMBIENT`]) and override fields with struct update syntax.
+/// Times are in milliseconds and independent of the tick of the [`InstallationConfig`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FireConfig {
-    /// PWM target frequency in Hz. 20-30 kHz keeps flicker invisible.
-    pub pwm_freq_hz: u32,
-    /// Integer clock divider, at least 1. Use the smallest value that keeps `top` within `u16`.
-    pub pwm_divider: u8,
-    /// Minimum base intensity (0..=255).
-    pub min_intensity: u8,
-    /// Maximum base intensity (0..=255). Must be greater than `min_intensity`.
-    pub max_intensity: u8,
-    /// Full breath period in milliseconds (one up and down cycle), at least one tick.
-    pub breath_period_ms: u32,
-    /// Random per-tick jitter amplitude around the base (0..=64 typical).
-    pub jitter_max: u8,
-    /// Probability (0..=255) to start a short flare on a tick. At a 15 ms tick, 3 is about 1 %
-    /// (~0.8 flares/s) and 48 is about 19 % (~12 flares/s, a visibly busy fire).
-    pub pulse_prob: u8,
-    /// Intensity added when a flare triggers.
-    pub pulse_boost: u8,
-    /// Q8 decay factor per tick for flares (0..=255). 224 decays fast, 248 slower.
-    pub pulse_decay_q8: u8,
-    /// Q8 smoothing factor per tick for the output EMA, at least 1. Smaller is smoother:
-    /// `new = old + ((target - old) * smooth_q8 >> 8)`.
-    pub smooth_q8: u8,
-    /// Update interval in milliseconds.
-    pub tick_ms: u32,
+    /// Highest output intensity; the light never gets brighter. Must be greater than 0.
+    pub peak: Intensity,
+    /// Slow swell of the whole flame.
+    pub swell: Layer,
+    /// Faster sway on top of the swell.
+    pub sway: Layer,
+    /// Fast flicker; its timing also paces the flutter of gusts.
+    pub flicker: Layer,
+    /// Occasional gusts that deepen the flicker for a moment.
+    pub gust: Gust,
+}
+
+/// One layer of smoothly interpolated value noise.
+///
+/// The layer glides from one random level to the next. Each glide takes a random time of about
+/// `min_ms..=max_ms` and eases in and out, so the layer has no fixed period and no corners.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Layer {
+    /// Largest pull below the peak in thousandths of the peak; 0 switches the layer off.
+    pub depth_permille: u16,
+    /// Shortest glide in milliseconds, at least two ticks.
+    pub min_ms: u32,
+    /// Longest glide in milliseconds, at least `min_ms`.
+    pub max_ms: u32,
+}
+
+/// Occasional gusts that make the flicker deeper for a moment.
+///
+/// A gust starts at random, on average every `mean_interval_ms`, deepens the flicker by up to
+/// `depth_permille` and fades out linearly within `duration_ms`. It follows the motion of the
+/// `flicker` layer, so a gust looks like a flutter rather than a jump.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Gust {
+    /// Largest extra pull at the start of a gust in thousandths of the peak; 0 switches gusts
+    /// off.
+    pub depth_permille: u16,
+    /// Mean time between two gusts in milliseconds, at least one tick.
+    pub mean_interval_ms: u32,
+    /// Time in milliseconds in which a gust fades out, at least one tick.
+    pub duration_ms: u32,
+}
+
+/// Validation messages of one layer, named after its field.
+struct LayerMessages {
+    /// `min_ms` spans less than two ticks.
+    too_fast: &'static str,
+    /// `max_ms` is shorter than `min_ms`.
+    inverted: &'static str,
+    /// `max_ms` is so long that the layer would stand still.
+    too_slow: &'static str,
+}
+
+/// Builds the [`LayerMessages`] of the layer in field `$name`.
+macro_rules! layer_messages {
+    ($name:literal) => {
+        LayerMessages {
+            too_fast: concat!(
+                $name,
+                ".min_ms must span at least two ticks, or the layer jumps instead of gliding"
+            ),
+            inverted: concat!($name, ".max_ms must be at least ", $name, ".min_ms"),
+            too_slow: concat!(
+                $name,
+                ".max_ms is too long for the tick: the glide rate truncates to zero and the layer \
+                 would stand still"
+            ),
+        }
+    };
+}
+
+impl LayerMessages {
+    /// Messages of the `flicker` layer.
+    const FLICKER: Self = layer_messages!("flicker");
+    /// Messages of the `sway` layer.
+    const SWAY: Self = layer_messages!("sway");
+    /// Messages of the `swell` layer.
+    const SWELL: Self = layer_messages!("swell");
 }
 
 impl FireConfig {
-    /// Returns the baseline configuration.
-    ///
-    /// A `const fn` rather than only `Default`, because profiles are built in const contexts.
-    #[must_use]
-    pub const fn new() -> Self {
-        Self {
-            pwm_freq_hz: 25_000,
-            pwm_divider: 1,
-            min_intensity: 20,
-            max_intensity: 255,
-            breath_period_ms: 3_500,
-            jitter_max: 18,
-            pulse_prob: 3,
-            pulse_boost: 40,
-            // About 105 ms half-life at a 15 ms tick.
-            pulse_decay_q8: 232,
-            // The output settles within a few hundred milliseconds.
-            smooth_q8: 20,
-            tick_ms: 15,
-        }
-    }
-
-    /// Checks that the parameters produce a working effect.
+    /// Checks that the look works at the tick of `installation`, and checks the installation.
     ///
     /// # Panics
     ///
     /// Panics with a description of the first violated constraint. Evaluated in a const context,
     /// that is a build error.
-    pub const fn validate(&self) {
+    pub const fn validate(&self, installation: &InstallationConfig) {
+        installation.validate();
         assert!(
-            self.max_intensity > self.min_intensity,
-            "max_intensity must be greater than min_intensity"
+            self.peak.get() > 0,
+            "peak must be greater than 0, or the light stays dark"
         );
         assert!(
-            self.pwm_divider >= 1,
-            "pwm_divider must be at least 1, 0 would divide by zero"
+            self.total_depth_permille() <= PERMILLE,
+            "the depths of swell, sway, flicker and gust must add up to at most 1000 permille, or \
+             the light could be pulled below dark"
         );
-        assert!(self.pwm_freq_hz > 0, "pwm_freq_hz must be greater than 0");
-        assert!(self.tick_ms > 0, "tick_ms must be greater than 0");
-        assert!(
-            self.breath_period_ms >= self.tick_ms,
-            "breath_period_ms must span at least one tick, or the envelope step overflows"
-        );
-        assert!(
-            self.smooth_q8 > 0,
-            "smooth_q8 must be greater than 0, or the output never changes"
-        );
-        assert!(
-            self.step_per_tick_q16() > 0_i32,
-            "breath_period_ms is too long for this intensity span: the envelope step truncates to \
-             zero and the breathing would freeze"
-        );
+        let tick_ms = installation.tick_ms;
+        if self.swell.is_on() {
+            self.swell.validate(tick_ms, &LayerMessages::SWELL);
+        }
+        if self.sway.is_on() {
+            self.sway.validate(tick_ms, &LayerMessages::SWAY);
+        }
+        if self.flicker_moves() {
+            self.flicker.validate(tick_ms, &LayerMessages::FLICKER);
+        }
+        if self.gust.is_on() {
+            self.gust.validate(tick_ms);
+        }
     }
 
-    /// Returns the breathing envelope step per tick in Q16.
-    ///
-    /// One 64-bit expression, so the intermediate never truncates:
-    /// `2 * span * 2^16 * tick_ms / breath_period_ms`.
+    /// Returns whether the flicker layer has to move: for its own depth or for gusts.
     #[must_use]
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "`breath_period_ms >= tick_ms` bounds the step by `2 * 255 << 16`, which fits in \
-                  i32"
-    )]
-    pub(crate) const fn step_per_tick_q16(&self) -> i32 {
-        let span = self.max_intensity as i64 - self.min_intensity as i64;
-        ((span << (Q16 + 1)) * self.tick_ms as i64 / self.breath_period_ms as i64) as i32
+    pub(crate) const fn flicker_moves(&self) -> bool {
+        self.flicker.is_on() || self.gust.is_on()
+    }
+
+    /// Returns the sum of all depths in thousandths of the peak.
+    #[must_use]
+    pub(crate) const fn total_depth_permille(&self) -> u32 {
+        self.swell.depth_permille as u32
+            + self.sway.depth_permille as u32
+            + self.flicker.depth_permille as u32
+            + self.gust.depth_permille as u32
     }
 }
 
-impl Default for FireConfig {
-    fn default() -> Self {
-        Self::new()
+impl Layer {
+    /// A switched-off layer.
+    pub const OFF: Self = Self {
+        depth_permille: 0,
+        min_ms: 0,
+        max_ms: 0,
+    };
+
+    /// Returns whether the layer pulls the light at all.
+    #[must_use]
+    pub(crate) const fn is_on(&self) -> bool {
+        self.depth_permille > 0
+    }
+
+    /// Checks the glide times at a tick of `tick_ms`.
+    const fn validate(&self, tick_ms: u32, messages: &LayerMessages) {
+        // Halving `min_ms` instead of doubling `tick_ms` cannot overflow.
+        assert!(self.min_ms / 2 >= tick_ms, "{}", messages.too_fast);
+        assert!(self.max_ms >= self.min_ms, "{}", messages.inverted);
+        assert!(
+            per_tick(ONE_Q16, tick_ms, self.max_ms) > 0,
+            "{}",
+            messages.too_slow
+        );
+    }
+}
+
+impl Gust {
+    /// Gusts switched off.
+    pub const OFF: Self = Self {
+        depth_permille: 0,
+        mean_interval_ms: 0,
+        duration_ms: 0,
+    };
+
+    /// Returns whether gusts happen at all.
+    #[must_use]
+    pub(crate) const fn is_on(&self) -> bool {
+        self.depth_permille > 0
+    }
+
+    /// Checks the gust timing at a tick of `tick_ms`.
+    const fn validate(&self, tick_ms: u32) {
+        assert!(
+            self.mean_interval_ms >= tick_ms,
+            "gust.mean_interval_ms must span at least one tick"
+        );
+        assert!(
+            per_tick(ONE_Q16, tick_ms, self.mean_interval_ms) > 0,
+            "gust.mean_interval_ms is too long for the tick: the chance per tick truncates to \
+             zero and gusts would never come"
+        );
+        assert!(
+            self.duration_ms >= tick_ms,
+            "gust.duration_ms must span at least one tick"
+        );
+        assert!(
+            per_tick(u16::MAX as u32, tick_ms, self.duration_ms) > 0,
+            "gust.duration_ms is too long for the tick: the fade per tick truncates to zero and a \
+             gust would never end"
+        );
     }
 }
 
 #[cfg(test)]
 mod tests {
-    //! Validation and derived values of [`FireConfig`].
+    //! Validation of [`FireConfig`].
 
-    use super::FireConfig;
+    use super::{FireConfig, Gust, Layer};
+    use crate::installation::InstallationConfig;
+    use crate::intensity::Intensity;
 
-    /// The baseline configuration is valid.
+    /// The baseline installation with a 15 ms tick.
+    const INSTALLATION: InstallationConfig = InstallationConfig::new();
+
+    /// Every preset is valid at every tick from 1 to 20 ms.
     #[test]
-    fn baseline_is_valid() {
-        FireConfig::new().validate();
-        assert_eq!(
-            FireConfig::default(),
-            FireConfig::new(),
-            "Default must match new()"
-        );
-    }
-
-    /// The envelope step of the baseline matches the closed-form value.
-    #[test]
-    fn baseline_step_matches_formula() {
-        // (255 - 20) << 17 * 15 / 3500, truncated.
-        assert_eq!(
-            FireConfig::new().step_per_tick_q16(),
-            132_008_i32,
-            "baseline step changed"
-        );
-    }
-
-    /// An empty intensity span is rejected.
-    #[test]
-    #[should_panic(expected = "max_intensity must be greater than min_intensity")]
-    fn rejects_empty_span() {
-        FireConfig {
-            min_intensity: 100,
-            max_intensity: 100,
-            ..FireConfig::new()
+    fn presets_are_valid_up_to_20_ms() {
+        for tick_ms in 1..=20 {
+            let installation = InstallationConfig {
+                tick_ms,
+                ..INSTALLATION
+            };
+            for preset in [
+                FireConfig::HEARTH,
+                FireConfig::TORCH,
+                FireConfig::CANDLE,
+                FireConfig::EMBER,
+                FireConfig::AMBIENT,
+            ] {
+                preset.validate(&installation);
+            }
         }
-        .validate();
     }
 
-    /// A zero clock divider is rejected.
+    /// Switched-off layers and gusts need no timing.
     #[test]
-    #[should_panic(expected = "pwm_divider must be at least 1")]
-    fn rejects_zero_divider() {
+    fn switched_off_motions_need_no_timing() {
         FireConfig {
-            pwm_divider: 0,
-            ..FireConfig::new()
+            peak: Intensity::FULL,
+            swell: Layer::OFF,
+            sway: Layer::OFF,
+            flicker: Layer::OFF,
+            gust: Gust::OFF,
         }
-        .validate();
+        .validate(&INSTALLATION);
     }
 
-    /// A zero PWM frequency is rejected.
-    #[test]
-    #[should_panic(expected = "pwm_freq_hz must be greater than 0")]
-    fn rejects_zero_frequency() {
-        FireConfig {
-            pwm_freq_hz: 0,
-            ..FireConfig::new()
-        }
-        .validate();
-    }
-
-    /// A zero tick is rejected.
+    /// The installation is validated along with the look.
     #[test]
     #[should_panic(expected = "tick_ms must be greater than 0")]
-    fn rejects_zero_tick() {
-        FireConfig {
+    fn rejects_invalid_installation() {
+        FireConfig::HEARTH.validate(&InstallationConfig {
             tick_ms: 0,
-            ..FireConfig::new()
-        }
-        .validate();
+            ..INSTALLATION
+        });
     }
 
-    /// A breath period shorter than one tick is rejected.
+    /// A dark peak is rejected.
     #[test]
-    #[should_panic(expected = "breath_period_ms must span at least one tick")]
-    fn rejects_breath_shorter_than_tick() {
+    #[should_panic(expected = "peak must be greater than 0")]
+    fn rejects_dark_peak() {
         FireConfig {
-            breath_period_ms: 10,
-            tick_ms: 15,
-            ..FireConfig::new()
+            peak: Intensity::OFF,
+            ..FireConfig::HEARTH
         }
-        .validate();
+        .validate(&INSTALLATION);
     }
 
-    /// A zero smoothing factor is rejected.
+    /// Depths of 1001 permille, which could pull the light below dark, are rejected; 1000 pass.
     #[test]
-    #[should_panic(expected = "smooth_q8 must be greater than 0")]
-    fn rejects_zero_smoothing() {
+    #[should_panic(expected = "must add up to at most 1000 permille")]
+    fn rejects_excess_depth() {
+        let full = FireConfig {
+            swell: Layer {
+                depth_permille: 400,
+                ..FireConfig::HEARTH.swell
+            },
+            sway: Layer {
+                depth_permille: 300,
+                ..FireConfig::HEARTH.sway
+            },
+            flicker: Layer {
+                depth_permille: 200,
+                ..FireConfig::HEARTH.flicker
+            },
+            gust: Gust {
+                depth_permille: 100,
+                ..FireConfig::HEARTH.gust
+            },
+            ..FireConfig::HEARTH
+        };
+        full.validate(&INSTALLATION);
         FireConfig {
-            smooth_q8: 0,
-            ..FireConfig::new()
+            gust: Gust {
+                depth_permille: 101,
+                ..full.gust
+            },
+            ..full
         }
-        .validate();
+        .validate(&INSTALLATION);
     }
 
-    /// A breath period so long that the step truncates to zero is rejected.
+    /// A glide shorter than two ticks is rejected and named after its layer.
     #[test]
-    #[should_panic(expected = "breath_period_ms is too long")]
-    fn rejects_frozen_envelope() {
+    #[should_panic(expected = "sway.min_ms must span at least two ticks")]
+    fn rejects_jumping_layer() {
         FireConfig {
-            min_intensity: 0,
-            max_intensity: 1,
-            breath_period_ms: 4_000_000,
-            ..FireConfig::new()
+            sway: Layer {
+                min_ms: 29,
+                ..FireConfig::HEARTH.sway
+            },
+            ..FireConfig::HEARTH
         }
-        .validate();
+        .validate(&INSTALLATION);
+    }
+
+    /// Inverted glide times are rejected and named after their layer.
+    #[test]
+    #[should_panic(expected = "swell.max_ms must be at least swell.min_ms")]
+    fn rejects_inverted_layer() {
+        FireConfig {
+            swell: Layer {
+                max_ms: FireConfig::HEARTH.swell.min_ms - 1,
+                ..FireConfig::HEARTH.swell
+            },
+            ..FireConfig::HEARTH
+        }
+        .validate(&INSTALLATION);
+    }
+
+    /// A glide so long that the layer would stand still is rejected.
+    #[test]
+    #[should_panic(expected = "flicker.max_ms is too long for the tick")]
+    fn rejects_frozen_layer() {
+        FireConfig {
+            flicker: Layer {
+                max_ms: 15 * 65_536 + 1,
+                ..FireConfig::HEARTH.flicker
+            },
+            ..FireConfig::HEARTH
+        }
+        .validate(&INSTALLATION);
+    }
+
+    /// Gusts need a moving flicker layer even when the flicker itself is off.
+    #[test]
+    #[should_panic(expected = "flicker.min_ms must span at least two ticks")]
+    fn gusts_need_flicker_timing() {
+        FireConfig {
+            flicker: Layer::OFF,
+            ..FireConfig::TORCH
+        }
+        .validate(&INSTALLATION);
+    }
+
+    /// A gust interval shorter than a tick is rejected.
+    #[test]
+    #[should_panic(expected = "gust.mean_interval_ms must span at least one tick")]
+    fn rejects_constant_gusts() {
+        FireConfig {
+            gust: Gust {
+                mean_interval_ms: 14,
+                ..FireConfig::TORCH.gust
+            },
+            ..FireConfig::TORCH
+        }
+        .validate(&INSTALLATION);
+    }
+
+    /// A gust interval so long that gusts never come is rejected.
+    #[test]
+    #[should_panic(expected = "gust.mean_interval_ms is too long for the tick")]
+    fn rejects_absent_gusts() {
+        FireConfig {
+            gust: Gust {
+                mean_interval_ms: 15 * 65_536 + 1,
+                ..FireConfig::TORCH.gust
+            },
+            ..FireConfig::TORCH
+        }
+        .validate(&INSTALLATION);
+    }
+
+    /// A gust shorter than a tick is rejected.
+    #[test]
+    #[should_panic(expected = "gust.duration_ms must span at least one tick")]
+    fn rejects_instant_gust() {
+        FireConfig {
+            gust: Gust {
+                duration_ms: 14,
+                ..FireConfig::TORCH.gust
+            },
+            ..FireConfig::TORCH
+        }
+        .validate(&INSTALLATION);
+    }
+
+    /// A gust so long that it never fades is rejected.
+    #[test]
+    #[should_panic(expected = "gust.duration_ms is too long for the tick")]
+    fn rejects_endless_gust() {
+        FireConfig {
+            gust: Gust {
+                duration_ms: 15 * 65_535 + 1,
+                ..FireConfig::TORCH.gust
+            },
+            ..FireConfig::TORCH
+        }
+        .validate(&INSTALLATION);
     }
 }

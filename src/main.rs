@@ -6,11 +6,12 @@
 //! Sixteen LED channels on GPIO 7 to GPIO 22 are driven with high-frequency PWM from a single
 //! task. GPIO `n` is PWM channel `n mod 16` (slice `n mod 16 / 2`, A for even `n`, B for odd), so
 //! this contiguous block reaches every PWM output the RP2350A can route to a pin exactly once.
-//! Each channel runs an independent flicker simulation with its own seed, so the flames do not
-//! move in lockstep.
+//! Each channel runs an independent flicker simulation with its own seed and no shared phase, so
+//! the flames do not move in lockstep.
 //!
-//! The effect uses integer math only (no floating point, no allocation). [`config::CFG`] is a
-//! compile-time constant, so every derived quantity is folded into the binary by the optimizer.
+//! The effect uses integer math only (no floating point, no allocation). [`config::INSTALLATION`]
+//! and [`config::CFG`] are compile-time constants, so every derived quantity is folded into the
+//! binary by the optimizer.
 
 #![no_std]
 #![no_main]
@@ -37,10 +38,10 @@ use fire_effect::{FireState, pwm};
 #[cfg(feature = "debug")]
 use panic_probe as _;
 
-use crate::config::{Blaustein, CFG, CHANNELS};
+use crate::config::{Blaustein, CHANNELS, Campfire, INSTALLATION};
 
 /// Fire simulation of one channel with the installed flame look.
-type Flame = FireState<Blaustein>;
+type Flame = FireState<Blaustein, Campfire>;
 
 /// PWM slices the RP2350A routes to pins; slices 8 to 11 exist only on the RP2350B.
 const MAX_SLICES: usize = 8;
@@ -79,7 +80,7 @@ static PICOTOOL_ENTRIES: [EntryAddr; 4] = [
 ];
 
 /// Interval between two effect updates.
-const TICK: Duration = Duration::from_millis(CFG.tick_ms as u64);
+const TICK: Duration = Duration::from_millis(INSTALLATION.tick_ms as u64);
 
 /// Watchdog period. The task feeds it once per tick; if the effect stops updating, the chip
 /// resets and the flames come back on their own.
@@ -196,8 +197,12 @@ fn slice_output<S: Slice>(
 /// Returns the PWM configuration shared by all slices, with both compare values at zero.
 fn pwm_config() -> PwmConfig {
     let mut config = PwmConfig::default();
-    config.top = pwm::calculate_top(clocks::clk_sys_freq(), CFG.pwm_freq_hz, CFG.pwm_divider);
-    config.divider = CFG.pwm_divider.into();
+    config.top = pwm::calculate_top(
+        clocks::clk_sys_freq(),
+        INSTALLATION.pwm_freq_hz,
+        INSTALLATION.pwm_divider,
+    );
+    config.divider = INSTALLATION.pwm_divider.into();
     config
 }
 

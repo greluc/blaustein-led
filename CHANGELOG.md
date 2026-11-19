@@ -7,6 +7,59 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Presets for the light roles of a castle model: `FireConfig::HEARTH` (fireplace, cooking fire),
+  `FireConfig::TORCH`, `FireConfig::CANDLE` (candle, oil lamp), `FireConfig::EMBER` (embers,
+  forge) and `FireConfig::AMBIENT` (room light). They are starting points tuned in a host
+  simulation and still have to be tuned on the real model.
+- `Follower`: a light driven by another channel, configured by a `FollowerConfig` with its own
+  floor, gain and smoothing time constant, such as `FollowerConfig::HEARTH_GLOW` for the red glow
+  of the embers under a hearth flame. It takes the source's intensity each tick and needs 4 bytes
+  of RAM.
+- `InstallationConfig` and the `Installation` trait for the settings every light shares (PWM
+  frequency, divider, tick), kept apart from the look of a role so two roles cannot disagree on
+  them.
+- `Intensity`, a 16-bit linear intensity newtype.
+- Host tests that every pair of channels is uncorrelated (each below 0.15, on average below 0.05,
+  over 50 minutes), that no role has a dominant period (autocorrelation below 0.15 from twice the
+  longest swell up to 30 s), that every role stays within its bounds and keeps its character, that
+  `peak` bounds the output and scales it without changing the motion, that the follower is
+  smoother than its source, stays in bounds and tracks its level, and an exhaustive test of the
+  gamma curve and duty mapping over all 65,536 intensities for six `top` values. The baseline
+  regression test pins every preset and the hearth glow.
+
+### Changed
+
+- The look of the flame changed. Three layers of smoothly interpolated value noise (a slow swell,
+  a faster sway and a fast flicker), each gliding to a new random level after a random time, and
+  occasional gusts that deepen the flicker replace the triangular breathing envelope, the jitter,
+  the flares and the output smoothing. `FireConfig` is now the look of a role: `peak`, the
+  `swell`, `sway` and `flicker` layers and `gust`; the PWM frequency, divider and tick moved to
+  `InstallationConfig`, and `FireState<S, P>` takes the installation `S` next to the profile `P`.
+- The firmware runs the hearth preset on every channel. It averages 33.6 % PWM duty, close to the
+  32.4 % of the previous installed look, with a deeper and irregular swell and a livelier flicker.
+  `src/config.rs` holds `INSTALLATION` next to `CFG`.
+- The simulation returns a 16-bit `Intensity` instead of `u8`, and `pwm::duty_for` maps it with a
+  stated rounding rule, `round(round(i² / 65535) * top / 65535)`: monotonic, dark maps to 0, full
+  scale to `top`, and within one count of the exact square law.
+- A channel needs 32 instead of 20 bytes of RAM. With sixteen channels the release image uses 5504
+  bytes of flash for code and constants and 1072 bytes of static RAM, with one channel 4512 and
+  480.
+
+### Fixed
+
+- All channels breathed together: every channel started the same deterministic envelope at the
+  same point, so any two channels correlated by 0.65 (0.99 with the baseline configuration) and the
+  whole castle swelled in a 5 s rhythm. Every channel now starts at a random point of every layer
+  and moves at random times, with no period: over 50 minutes, two channels of the hearth correlate
+  by at most 0.04 and by 0.01 on average.
+- `max_intensity` bounded only the envelope; flares and jitter pushed the installed look up to 250
+  of 255 although it was set to 128. `peak` now bounds the output by construction.
+- Dim lights faded in visible steps, because the intensity had 8 bits before the gamma curve: from
+  intensity 20 to 21 the duty jumped by 11 %. With 16 bits, adjacent intensities move the duty by
+  at most one count at 25 kHz.
+
 ## [2.0.0](https://github.com/greluc/blaustein-led/releases/tag/v2.0.0) - 2026-11-04
 
 ### Added
