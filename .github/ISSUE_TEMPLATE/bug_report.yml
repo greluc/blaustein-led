@@ -46,6 +46,7 @@ body:
       label: Build profile
       options:
         - release
+        - release (--features identify)
         - release-debug (--features debug)
         - dev
         - not built (prebuilt image)
@@ -69,8 +70,8 @@ body:
   - type: textarea
     id: config
     attributes:
-      label: Changes to CFG
-      description: The `CFG` constant from `src/config.rs`, if you changed it.
+      label: Changes to the configuration
+      description: The constants from `src/config.rs` you changed (`INSTALLATION`, `LIGHTING`), if any.
       render: rust
 
   - type: textarea

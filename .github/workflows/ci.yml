@@ -56,18 +56,24 @@ jobs:
         run: cargo test-host --locked
 
   firmware:
-    name: firmware (${{ matrix.profile }})
+    name: firmware (${{ matrix.name }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         include:
-          - profile: release
+          - name: release
+            profile: release
             features: ""
-          - profile: release-debug
+          - name: release, identify
+            profile: release
+            features: identify
+          - name: release-debug
+            profile: release-debug
             features: debug
-          - profile: dev
+          - name: dev
+            profile: dev
             features: ""
     env:
       PROFILE: ${{ matrix.profile }}
@@ -92,14 +98,14 @@ jobs:
         run: |
           size="$(rustc --print sysroot)/lib/rustlib/x86_64-unknown-linux-gnu/bin/llvm-size"
           {
-            echo '### Release image'
+            echo "### Release image${FEATURES:+ ($FEATURES)}"
             echo '```'
             "$size" -A target/thumbv8m.main-none-eabihf/release/blaustein-led | grep -E '^(section|\.text|\.rodata|\.data|\.bss)'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload the release image
-        if: matrix.profile == 'release'
+        if: matrix.profile == 'release' && matrix.features == ''
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: blaustein-led-elf

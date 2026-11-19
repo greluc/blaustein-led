@@ -13,21 +13,30 @@
 //! Each channel sums three layers of smoothly interpolated value noise (a slow swell, a faster
 //! sway and a fast flicker) and occasional gusts, each moving at random times drawn from the
 //! channel's own seed. No layer has a period and no two channels share a phase, so the lights
-//! never move in lockstep. The result is a 16-bit linear [`Intensity`] that never exceeds the
+//! never move in lockstep. The result is a 16-bit perceived [`Intensity`] that never exceeds the
 //! role's `peak`; [`pwm::duty_for`] maps it through a square-law gamma curve to a PWM compare
 //! value.
 //!
 //! A [`Follower`] derives a light from another channel, such as the red glow of the embers under
 //! a flame, configured by a [`FollowerProfile`].
+//!
+//! A [`Lighting`] installation adds a [`LightingConfig`]: the look of every role, the follower,
+//! the staggered [`IgnitionConfig`] after power-on and the table of [`Channel`]s, each driven by
+//! a [`Light`] and trimmed to its LED. [`Lights`] runs every channel of it; [`Identify`] blinks
+//! each channel's number instead, to match wires to channels.
 
 #![cfg_attr(not(test), no_std)]
 
+mod channel;
 mod config;
 mod fire_state;
 mod fixed_point;
 mod follower;
+mod identify;
+mod ignition;
 mod installation;
 mod intensity;
+mod lighting;
 mod noise;
 pub mod pwm;
 mod rng;
@@ -36,9 +45,13 @@ mod roles;
 mod test_support;
 mod tuning;
 
+pub use channel::{Channel, Light};
 pub use config::{FireConfig, FireProfile, Gust, Layer};
 pub use fire_state::FireState;
 pub use follower::{Follower, FollowerConfig, FollowerProfile};
+pub use identify::Identify;
+pub use ignition::IgnitionConfig;
 pub use installation::{Installation, InstallationConfig};
 pub use intensity::Intensity;
+pub use lighting::{Lighting, LightingConfig, Lights};
 pub use rng::channel_seed;

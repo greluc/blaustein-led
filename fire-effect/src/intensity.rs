@@ -1,15 +1,15 @@
 // SPDX-FileCopyrightText: 2026 the Blaustein LED contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! Linear light intensity, the output of the simulation.
+//! Perceived light intensity, the output of the simulation.
 
 use crate::fixed_point::PERMILLE;
 
-/// Linear light intensity as a 16-bit fraction of full scale.
+/// Perceived light intensity as a 16-bit fraction of full scale.
 ///
-/// `0` is dark and `u16::MAX` is full scale, linear in light output.
-/// [`pwm::duty_for`](crate::pwm::duty_for) maps it through the square-law gamma curve to a PWM
-/// compare value.
+/// `0` is dark and `u16::MAX` is full scale. The scale follows what the eye sees, not the light
+/// output: [`pwm::duty_for`](crate::pwm::duty_for) maps it through the square-law gamma curve to a
+/// PWM compare value, so half of full scale gives a quarter of the light.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Intensity(u16);
 

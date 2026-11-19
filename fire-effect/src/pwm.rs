@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 the Blaustein LED contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! Gamma-corrected PWM duty values and PWM timing.
+//! Gamma-corrected PWM duty values, PWM timing and the phases of the slices.
 
 use crate::intensity::Intensity;
 
@@ -23,7 +23,7 @@ const fn gamma(intensity: Intensity) -> u32 {
     div_full_rounded(raw * raw)
 }
 
-/// Maps a linear intensity to a PWM compare value in `0..=top` through a square-law gamma curve.
+/// Maps an intensity to a PWM compare value in `0..=top` through a square-law gamma curve.
 ///
 /// Rounding rule: `duty = round(round(i² / 65535) * top / 65535)` for the raw intensity `i`,
 /// both roundings half up. It is monotonic, maps dark to 0 and full scale to `top`, and deviates
@@ -52,11 +52,32 @@ pub fn calculate_top(clock_hz: u32, desired_freq_hz: u32, divider: u8) -> u16 {
     u16::try_from(period_counts.saturating_sub(1)).unwrap_or(u16::MAX)
 }
 
+/// Returns the counter value that places slice `slice` of `slices` at its share of the PWM
+/// period, `slice * (top + 1) / slices`, truncated.
+///
+/// Slices started together from these counters switch their outputs on at evenly spread instants
+/// of the period instead of all at once, which spreads the LED current over the period. `slice`
+/// must be below `slices`; the result is then at most `top`.
+///
+/// # Panics
+///
+/// Panics if `slices` is zero.
+#[must_use]
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "`slice < slices` keeps the offset below the period of `top + 1` counts, within u16"
+)]
+pub const fn phase_offset(slice: usize, slices: usize, top: u16) -> u16 {
+    // In `usize`, which the RP2350 divides in hardware; a 64-bit division would pull in a
+    // software routine of almost 1 KB whenever `slices` is not a power of two.
+    (slice * (top as usize + 1) / slices) as u16
+}
+
 #[cfg(test)]
 mod tests {
-    //! Gamma curve, duty mapping and PWM timing.
+    //! Gamma curve, duty mapping, PWM timing and slice phases.
 
-    use super::{calculate_top, duty_for, gamma};
+    use super::{calculate_top, duty_for, gamma, phase_offset};
     use crate::intensity::Intensity;
 
     /// System clock of the RP2350 at its default configuration.
@@ -213,5 +234,45 @@ mod tests {
     #[should_panic(expected = "divide by zero")]
     fn top_rejects_zero_frequency() {
         let _top = calculate_top(CLK_SYS_HZ, 0, 1);
+    }
+
+    /// For one to twelve slices, the first starts at zero and the offsets rise through the period
+    /// in steps that differ by at most one count, so the slices are spread evenly.
+    #[test]
+    fn phases_spread_evenly_over_the_period() {
+        for top in TOPS {
+            let period = u32::from(top) + 1;
+            for slices in 1..=12 {
+                let offsets: Vec<u32> = (0..slices)
+                    .map(|slice| u32::from(phase_offset(slice, slices, top)))
+                    .collect();
+                assert_eq!(
+                    offsets[0], 0,
+                    "the first of {slices} slices must start at zero"
+                );
+                let mut steps: Vec<u32> =
+                    offsets.windows(2).map(|pair| pair[1] - pair[0]).collect();
+                // The step from the last slice round to the first closes the period.
+                steps.push(period - offsets[slices - 1]);
+                let (shortest, longest) = (steps.iter().min(), steps.iter().max());
+                assert!(
+                    longest
+                        .zip(shortest)
+                        .is_some_and(|(long, short)| long - short <= 1),
+                    "{slices} slices at top {top} are spread unevenly: {offsets:?}"
+                );
+                assert!(
+                    offsets.iter().all(|&offset| offset <= u32::from(top)),
+                    "an offset of {slices} slices exceeds top {top}: {offsets:?}"
+                );
+            }
+        }
+    }
+
+    /// `phase_offset` rejects zero slices.
+    #[test]
+    #[should_panic(expected = "divide by zero")]
+    fn phases_reject_zero_slices() {
+        let _offset = phase_offset(0, 0, u16::MAX);
     }
 }

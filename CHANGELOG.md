@@ -9,6 +9,32 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Channel table: `LIGHTING` in `src/config.rs` assigns every channel, one line each, a role
+  (`Light::Hearth`, `Torch`, `Candle`, `Ember`, `Ambient`) or `Light::Follows(n)`, and a trim of
+  1 to 1000 permille that dims its LED without changing how it moves. The looks of the five roles
+  and the follower sit next to it. An empty table, a follower of itself, of a later channel, of a
+  follower or of a channel beyond the table, and a trim out of range fail the build with an
+  explanatory message; a bad trim points at its line. The draft channel plan of
+  `docs/lighting-plan.md` is installed.
+- Staggered ignition: after power-on every channel stays dark until its turn and then fades in,
+  set by `IgnitionConfig` (installed: 400 ms from channel to channel, a fade of 2 s). A follower
+  lights after its flame and is fed the flame as it lights.
+- Every power-on looks different: 32 random bits from the ring oscillator (`RoscRng` of embassy-rp)
+  are mixed into the channel seeds at boot. The read is a fixed number of register reads that
+  cannot block or fail, every value gives valid, distinct, non-zero seeds, and zero gives the
+  compile-time seeds.
+- The PWM slices in use start in the same clock cycle with their counters spread evenly over the
+  period, so the LEDs no longer all switch on at the same instant; the per-tick update keeps the
+  phases.
+- `identify` feature: every LED blinks its channel number counted from 1 (150 ms flashes, 250 ms
+  apart, a 2 s pause), all channels in step, to match wires to channels during the installation.
+  Its `picotool info` description names it. CI lints and builds it, and the release image sizes of
+  both builds go into the job summary.
+- In `fire-effect`: `LightingConfig` and the `Lighting` trait, `Channel` and `Light`,
+  `IgnitionConfig`, the `Lights` bank that runs every channel with its role or follower, the
+  ignition and the trim, `Identify`, and `pwm::phase_offset`. Host tests of the ignition envelope,
+  the identify pattern, the phase offsets, the seed mixing, the trim, the table validation and the
+  bank as a whole: 92 tests in total.
 - Documentation of the installation: `docs/lighting-plan.md` with the analysis of 2.0.0, the
   lighting concept, a draft channel plan for the full castle and every source that still has to
   be verified; `docs/hardware.md` with the electrical design, the power supply with a magnetic
@@ -25,7 +51,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `InstallationConfig` and the `Installation` trait for the settings every light shares (PWM
   frequency, divider, tick), kept apart from the look of a role so two roles cannot disagree on
   them.
-- `Intensity`, a 16-bit linear intensity newtype.
+- `Intensity`, a 16-bit newtype for the perceived intensity; the gamma curve turns it into light
+  output.
 - Host tests that every pair of channels is uncorrelated (each below 0.15, on average below 0.05,
   over 50 minutes), that no role has a dominant period (autocorrelation below 0.15 from twice the
   longest swell up to 30 s), that every role stays within its bounds and keeps its character, that
@@ -45,15 +72,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the flares and the output smoothing. `FireConfig` is now the look of a role: `peak`, the
   `swell`, `sway` and `flicker` layers and `gust`; the PWM frequency, divider and tick moved to
   `InstallationConfig`, and `FireState<S, P>` takes the installation `S` next to the profile `P`.
-- The firmware runs the hearth preset on every channel. It averages 33.6 % PWM duty, close to the
-  32.4 % of the previous installed look, with a deeper and irregular swell and a livelier flicker.
-  `src/config.rs` holds `INSTALLATION` next to `CFG`.
+- The firmware runs a role per channel from the channel table instead of one look on every
+  channel. Its hearth averages 33.6 % PWM duty, close to the 32.4 % of the look installed in
+  2.0.0, with a deeper and irregular swell and a livelier flicker. `src/config.rs` holds
+  `INSTALLATION` and `LIGHTING`; `CFG` is gone, and `CHANNELS` is the length of the channel table
+  instead of a number set by hand.
+- The watchdog starts right after the clocks are set up instead of in the task, so it also covers
+  the PWM setup and the seeding.
 - The simulation returns a 16-bit `Intensity` instead of `u8`, and `pwm::duty_for` maps it with a
   stated rounding rule, `round(round(i² / 65535) * top / 65535)`: monotonic, dark maps to 0, full
   scale to `top`, and within one count of the exact square law.
-- A channel needs 32 instead of 20 bytes of RAM. With sixteen channels the release image uses 5504
-  bytes of flash for code and constants and 1072 bytes of static RAM, with one channel 4512 and
-  480.
+- A channel needs 36 instead of 20 bytes of RAM. With sixteen channels the release image uses 6636
+  bytes of flash for code and constants and 1120 bytes of static RAM, with one channel 5292 and
+  472; the identify build with sixteen channels 4652 and 544.
 
 ### Fixed
 

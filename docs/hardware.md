@@ -155,6 +155,8 @@ spare bricks first whether the bricks still clamp cleanly with a wire in the joi
 
 - Test every LED on the board and mark its polarity.
 - Label every wire with its channel number.
+- Match the wires with the identify build (`cargo run --release --features identify`): every LED
+  blinks its channel number counted from 1, so channel 0 flashes once and channel 15 sixteen times.
 - Photograph the installation and keep the channel plan in this repository up to date.
 
 ## Bill of materials

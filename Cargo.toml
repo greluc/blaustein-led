@@ -48,6 +48,11 @@ debug = [
     "embassy-time/defmt",
     "panic-probe/print-defmt",
 ]
+# Enable this feature to replace the fire with an installation aid: every LED
+# blinks its own 1-based channel number, all channels in step, so wires can be
+# matched to channels. The watchdog and the panic handler stay as in the default
+# build.
+identify = []
 
 [dependencies]
 fire-effect = { path = "fire-effect" }
