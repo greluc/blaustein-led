@@ -34,8 +34,8 @@ The source lives at [github.com/greluc/blaustein-led](https://github.com/greluc/
   a fireplace flame. One parameter, `peak`, bounds the brightness of a role without changing how it
   moves.
 - **Channel table.** One line per LED assigns its role or the channel it follows, and a trim that
-  evens out LEDs of the same type without touching the role. The installed table is the draft
-  channel plan of [docs/lighting-plan.md](docs/lighting-plan.md).
+  evens out LEDs of the same type without touching the role. The installed table is the plan of
+  the first controller in [docs/lighting-plan.md](docs/lighting-plan.md).
 - **Staggered ignition.** After power-on every channel stays dark until its turn and then fades
   in, about 400 ms after the one before it, within 2 s. A follower lights after its flame.
 - **Different at every power-on.** 32 random bits from the ring oscillator of the RP2350 are mixed
@@ -53,8 +53,8 @@ The source lives at [github.com/greluc/blaustein-led](https://github.com/greluc/
   so the cadence never drifts.
 - **Integer only.** No floating point and no allocation. The configuration is a compile-time
   constant, so every derived value folds into the binary. A channel needs 36 bytes of RAM. The
-  release image uses about 5.2 KB of flash and 472 bytes of static RAM for one LED, and 6.5 KB and
-  1120 bytes for sixteen; the identify build 4.5 KB and 544 bytes for sixteen.
+  release image uses about 5.2 KB of flash and 472 bytes of static RAM for one LED, and 6.4 KB and
+  1032 bytes for the installed fourteen; the identify build 4.5 KB and 528 bytes for fourteen.
 - **Unattended.** In deployed builds a panic resets the chip instead of halting, and a watchdog,
   started right after the clocks are set up, resets it if anything stops the effect. Nothing writes to flash, so
   cutting the power is safe. Invalid configurations fail the build.
@@ -72,15 +72,18 @@ The source lives at [github.com/greluc/blaustein-led](https://github.com/greluc/
   | Channel A | GPIO 16 | GPIO 18 | GPIO 20 | GPIO 22 | GPIO 8 | GPIO 10 | GPIO 12 | GPIO 14 |
   | Channel B | GPIO 17 | GPIO 19 | GPIO 21 | GPIO 7 | GPIO 9 | GPIO 11 | GPIO 13 | GPIO 15 |
 
-- Wiring per channel: GPIO → series resistor → LED anode; LED cathode → GND. Start with about
-  1 kΩ for amber, orange and red and about 330 Ω for warm white.
+- Wiring per channel on a test bench: GPIO → series resistor → LED anode; LED cathode → GND. Start
+  with about 1 kΩ for amber, orange and red.
 
-Use a series resistor on every channel. The firmware assumes active-high LEDs. A GPIO drives only
-a few milliamperes, and the sum over all pins is limited as well: plan for at most 4 mA per pin and
-40 mA in total. For more than two LEDs or more brightness on a channel, switch the LEDs through a
-small logic-level MOSFET.
+Use a series resistor on every channel. The firmware assumes active-high LEDs. A pin of the RP2350
+resets to a drive strength of 4 mA, and all pins together may source 100 mA. A warm white LED needs
+typically 2.7 V and up to 3.3 V, which leaves a 3.3 V pin almost no headroom.
 
-[docs/hardware.md](docs/hardware.md) holds the full electrical design, the power supply and the
+The installation in the castle therefore does not hang its LEDs on the pins. It drives every
+channel through a buffer on 5 V. It is planned with one Raspberry Pi Pico 2 W per zone of the
+castle, three in all, fed by a single power lead; the firmware support for several controllers and
+for an update over the radio is still to come.
+[docs/hardware.md](docs/hardware.md) holds the electrical design, the power supply and the
 installation in the model; [docs/lighting-plan.md](docs/lighting-plan.md) holds the lighting
 concept and the channel plan.
 
@@ -121,10 +124,11 @@ Each entry is `Channel::new(light, trim_permille)`, in the pin order of the tabl
 
 ```rust
 channels: &[
-    Channel::new(Light::Hearth, 1_000),     // 0, GPIO 16: base castle, hall, fireplace flame
-    Channel::new(Light::Follows(0), 1_000), // 1, GPIO 17: base castle, hall, its embers
-    Channel::new(Light::Hearth, 1_000),     // 2, GPIO 18: base castle, kitchen, cooking fire
-    Channel::new(Light::Candle, 800),       // 3, GPIO 19: base castle, bedroom, a bright LED
+    Channel::new(Light::Hearth, 1_000),     // 0, GPIO 16: base castle, kitchen, cooking fire
+    Channel::new(Light::Follows(0), 1_000), // 1, GPIO 17: base castle, kitchen, its embers
+    Channel::new(Light::Hearth, 1_000),     // 2, GPIO 18: base castle, hall, fireplace flame
+    Channel::new(Light::Follows(2), 1_000), // 3, GPIO 19: base castle, hall, its embers
+    Channel::new(Light::Candle, 800),       // 4, GPIO 20: base castle, candles, bright LEDs
     // ...
 ],
 ```
@@ -139,10 +143,11 @@ channels: &[
   about half as bright. A trim only dims; for more light on every LED of a role, raise its `peak`.
   The trim of a flame does not reach its follower.
 
-The installed table is the draft of [docs/lighting-plan.md](docs/lighting-plan.md): hearths on
-channels 0, 2, 5 and 7, the glow of the hall fireplace on channel 1, torches on 4, 6, 10 and 14,
-candles on 3, 8, 9, 11 and 15, the forge as embers on 12 and ambient light on 13, all at a trim of
-1000. An entry that follows itself, a later channel, a follower or a channel beyond the table, a
+The installed table is the plan of the first controller in
+[docs/lighting-plan.md](docs/lighting-plan.md), fourteen channels for the base castle, the keep and
+the Vorburg: hearths on channels 0, 2 and 5 with the glow of their embers on 1, 3 and 6, candles
+on 4, 7 and 10 and torches on 8, 9, 11, 12 and 13, all at a trim of 1000. The tables of the other
+controllers follow with the firmware support for several controllers. An entry that follows itself, a later channel, a follower or a channel beyond the table, a
 trim of 0 or above 1000, or an empty table fails the build, for example with
 `a channel can only follow an earlier channel, which is updated before it within a tick`.
 
@@ -205,8 +210,8 @@ flame, and it is fed the flame as it lights, so the embers heat up with it.
 | `delay_ms` | `u32` | 400 | Time from the start of one channel to the start of the next. |
 | `fade_ms` | `u32` | 2000 | Time in which a channel fades in from dark, at least one tick and at most 65,536 ticks. |
 
-At the 15 ms tick the installed values round to 390 ms and 1995 ms, so with sixteen channels the
-last one starts after about 6 s and is fully lit after about 8 s.
+At the 15 ms tick the installed values round to 390 ms and 1995 ms, so with the installed fourteen
+channels the last one starts after about 5 s and is fully lit after about 7 s.
 
 ## Build and flash
 
@@ -237,8 +242,8 @@ Set the log level of `debug` builds with `DEFMT_LOG` (default `info`, set in `.c
 
 `cargo run --release --features identify` flashes an installation aid instead of the fire: every
 LED blinks its position in the channel table counted from 1, so a wire can be matched to its
-channel. The table and the channel plan count from 0, so channel 0 (GPIO 16) flashes once and
-channel 15 (GPIO 15) sixteen times. All channels start together, each flash lasts 150 ms with
+channel. The table and the channel plan count from 0, so channel 0 (GPIO 16) flashes once and the
+last installed channel, 13 (GPIO 13), fourteen times. All channels start together, each flash lasts 150 ms with
 250 ms of dark in between, and after the flashes of the last channel all LEDs stay dark for 2 s
 before the pattern repeats. Flashes are at full scale and ignore the trim.
 The watchdog and the resetting panic handler work as in the default build, and `picotool info`
@@ -253,8 +258,9 @@ a running Pico into its USB bootloader. The lights, the watchdog and the resetti
 work as in the default build. The device only answers a computer; on a plain USB charger it waits
 for one and the lights run exactly as without the feature. The lead must carry the data lines.
 
-The procedure below follows the documentation of existing implementations of the reset interface
-and has **not been tried on hardware** yet.
+The interface and the commands below were checked against the Pico SDK 2.3.1 and picotool 2.3.1,
+see [docs/lighting-plan.md](docs/lighting-plan.md#firmware). The procedure has **not been tried on
+hardware** yet.
 
 1. Flash a build with the feature once the usual way, with the BOOTSEL button.
 2. For every later update, connect a computer with picotool to the lead and run:
@@ -277,8 +283,8 @@ BOOTSEL button again.
   IDs picotool looks for, and the product name `Blaustein Fire LED`.
 - **Windows.** Microsoft OS 2.0 descriptors ask Windows 8.1 or later to bind its WinUSB driver to
   the device, so picotool reaches it without Zadig or an INF file.
-- **Linux.** picotool needs access to the USB device: a udev rule for vendor `2e8a` and product
-  `0009`, or `sudo`.
+- **Linux.** picotool needs access to the USB device: a udev rule for vendor `2e8a` with the
+  products `0009`, the running firmware, and `000f`, the bootloader it reboots into, or `sudo`.
 - **macOS.** Nothing to set up.
 - **Requests.** The firmware only offers the reboot into the bootloader and rejects every other
   request. Of the options a computer can send with it, it keeps the two that switch the mass
@@ -287,9 +293,9 @@ BOOTSEL button again.
   firmware; there is no authentication. A host that only reboots it leaves the lights dark until
   the firmware is flashed again or the power is cut and restored; the reboot does not touch the
   flash, so the installed firmware starts again after the power cycle.
-- **Size.** The feature adds embassy-usb. With sixteen LEDs the release image uses about 15.8 KB
-  of flash and 2512 bytes of static RAM, the identify build with the feature 14.0 KB and
-  1936 bytes; the build without the feature is unchanged.
+- **Size.** The feature adds embassy-usb. With the installed fourteen channels the release image
+  uses about 15.7 KB of flash and 2424 bytes of static RAM, the identify build with the feature
+  14.0 KB and 1920 bytes; the build without the feature is unchanged.
 
 ## Development
 
@@ -324,9 +330,14 @@ the code itself builds on stable. CI runs all of the above on every pull request
 
 | Topic | Document |
 | --- | --- |
-| Lighting concept, channel plan and the analysis behind them | [docs/lighting-plan.md](docs/lighting-plan.md) |
-| Wiring, power supply, installation and bill of materials | [docs/hardware.md](docs/hardware.md) |
-| Research still to do, as a brief for a session with internet access | [docs/research-brief.md](docs/research-brief.md) |
+| Decisions, lighting concept, channel plan, stages and the steps to build it | [docs/lighting-plan.md](docs/lighting-plan.md) |
+| Controllers, driver stage, power, connectors, work on the bricks and installation | [docs/hardware.md](docs/hardware.md) |
+| Parts with articles and prices, and the orders by stage | [docs/bill-of-materials.md](docs/bill-of-materials.md) |
+| The sets: light points, joints and cavities | [docs/model.md](docs/model.md) |
+| How brick models are lit, and the comparison of architectures | [docs/lighting-practice.md](docs/lighting-practice.md) |
+| Printed parts and their test plan | [docs/printed-parts.md](docs/printed-parts.md) |
+| Every source, and what stays unverified | [docs/sources.md](docs/sources.md) |
+| The research brief and what became of it | [docs/research-brief.md](docs/research-brief.md) |
 | Contributing, checks and commit rules | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | Reporting a vulnerability | [.github/SECURITY.md](.github/SECURITY.md) |
 | Code of Conduct | [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) |

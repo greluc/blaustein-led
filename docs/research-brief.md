@@ -6,6 +6,32 @@ only: it opened no web page, saw no datasheet and never saw the model. Your job 
 it wrote, research what it could not, put the whole plan under the microscope and turn it into
 something that can be ordered and built.
 
+## Status
+
+The brief was carried out on 2026-11-19. It stays in the repository as the record of what was asked.
+
+| Task | Result |
+| --- | --- |
+| 1. Verify every source and statement | Done: [sources.md](sources.md) lists every source with what it confirmed or corrected, what stays unverified and what could not be read |
+| 2. Research the model | Done from the product pages and the building instructions: [model.md](model.md). Nobody has seen the model. Only the instructions of the base castle and the keep were read in full; the others were sampled |
+| 3. How brick models are lit | Done: [lighting-practice.md](lighting-practice.md) |
+| 4. Make it modular | Done as a design: controllers per zone, connectors and pin assignment in [hardware.md](hardware.md), stages in [lighting-plan.md](lighting-plan.md). The connectors are untried and bought as samples first |
+| 5. Bill of materials | Done: [bill-of-materials.md](bill-of-materials.md) |
+| 6. Printed parts | Findings, the rule where a print is used and a test plan done: [printed-parts.md](printed-parts.md). No design file was added, because no tool to render one was at hand |
+| 7. Review of the whole plan | Done: the section "What the research changed" of [lighting-plan.md](lighting-plan.md) |
+| 8. Verify the firmware | The `usb-update` feature was compared with the Pico SDK and picotool: every constant matches, the Microsoft descriptor differs in form and stays to be shown on Windows, see the section "Firmware" of [lighting-plan.md](lighting-plan.md). The channel table of the first controller is installed. No board was connected, so nothing was flashed or measured |
+
+While the brief was carried out, the owner changed three of its fixed constraints, and the plan
+follows the new ones: the controllers are several Raspberry Pi Pico 2 W inside the castle instead
+of one Pico 2 in the rock base; a brick that has to change is replaced by a printed one where it
+cannot be seen, and a visible one may be drilled, cut and glued once a replacement brick is at
+hand; and the lighting is built in stages, starting with the base castle and the Bergfried.
+
+Open after this session: the first order and the bench test, an update over the radio, the
+firmware support for several controllers, a layout and later a circuit board for the board of a
+zone, the design files of the printed parts, and the inside of the display base, which is not
+published yet.
+
 ## The project
 
 Blaustein LED lights the BlueBrixx model Burg Blaustein, the full-size version with every expansion

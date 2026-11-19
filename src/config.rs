@@ -11,10 +11,11 @@ use fire_effect::{
 /// PWM timing and update tick, shared by every channel.
 pub const INSTALLATION: InstallationConfig = InstallationConfig::new();
 
-/// The look of every role, the follower, the ignition after power-on and the channel table.
+/// The look of every role, the follower, the ignition after power-on and the channel table of the
+/// first controller: base castle, keep and Vorburg.
 ///
-/// The channel table has one entry per LED, in the pin order GPIO 16 to GPIO 22, then GPIO 7 to
-/// GPIO 15: `Channel::new(light, trim_permille)`. `light` is a role (`Light::Hearth`, `Torch`,
+/// The channel table has one entry per channel, in the pin order GPIO 16 to GPIO 22, then GPIO 7
+/// to GPIO 15: `Channel::new(light, trim_permille)`. `light` is a role (`Light::Hearth`, `Torch`,
 /// `Candle`, `Ember`, `Ambient`) or `Light::Follows(n)`, the glow of channel `n`, which must be an
 /// earlier role. `trim_permille` evens out the LED: 1000 shows the role as configured, lower
 /// values dim it. Every value derived from it is a compile-time constant, and an invalid table
@@ -31,22 +32,20 @@ pub const LIGHTING: LightingConfig = LightingConfig {
         fade_ms: 2_000,
     },
     channels: &[
-        Channel::new(Light::Hearth, 1_000), // 0, GPIO 16: base castle, hall, fireplace flame
-        Channel::new(Light::Follows(0), 1_000), // 1, GPIO 17: base castle, hall, its embers
-        Channel::new(Light::Hearth, 1_000), // 2, GPIO 18: base castle, kitchen, cooking fire
-        Channel::new(Light::Candle, 1_000), // 3, GPIO 19: base castle, bedroom
-        Channel::new(Light::Torch, 1_000),  // 4, GPIO 20: base castle, courtyard
-        Channel::new(Light::Hearth, 1_000), // 5, GPIO 21: keep, living room, fireplace
-        Channel::new(Light::Torch, 1_000),  // 6, GPIO 22: keep, guard platform
-        Channel::new(Light::Hearth, 1_000), // 7, GPIO 7: Saalbau, chambers, fireplace
-        Channel::new(Light::Candle, 1_000), // 8, GPIO 8: Saalbau, knights' hall
-        Channel::new(Light::Candle, 1_000), // 9, GPIO 9: Saalbau, chapel
-        Channel::new(Light::Torch, 1_000),  // 10, GPIO 10: gatehouse left, Hurde
-        Channel::new(Light::Candle, 1_000), // 11, GPIO 11: gatehouse, guard room, archive
-        Channel::new(Light::Ember, 1_000),  // 12, GPIO 12: forge
-        Channel::new(Light::Ambient, 1_000), // 13, GPIO 13: Vorburg, half-timbered house
-        Channel::new(Light::Torch, 1_000),  // 14, GPIO 14: gatehouse right, Schildwerk
-        Channel::new(Light::Candle, 1_000), // 15, GPIO 15: Münzturm
+        Channel::new(Light::Hearth, 1_000), // 0, GPIO 16: base castle, kitchen, cooking fire
+        Channel::new(Light::Follows(0), 1_000), // 1, GPIO 17: base castle, kitchen, its embers
+        Channel::new(Light::Hearth, 1_000), // 2, GPIO 18: base castle, hall, fireplace flame
+        Channel::new(Light::Follows(2), 1_000), // 3, GPIO 19: base castle, hall, its embers
+        Channel::new(Light::Candle, 1_000), // 4, GPIO 20: base castle, hall candles, bedroom
+        Channel::new(Light::Hearth, 1_000), // 5, GPIO 21: keep, living room, fire
+        Channel::new(Light::Follows(5), 1_000), // 6, GPIO 22: keep, living room, its embers
+        Channel::new(Light::Candle, 1_000), // 7, GPIO 7: keep, entrance level, flame bowl
+        Channel::new(Light::Torch, 1_000),  // 8, GPIO 8: base castle, courtyard
+        Channel::new(Light::Torch, 1_000),  // 9, GPIO 9: keep, guard platform
+        Channel::new(Light::Candle, 1_000), // 10, GPIO 10: Vorburg, candles
+        Channel::new(Light::Torch, 1_000),  // 11, GPIO 11: Vorburg, stone gate, left
+        Channel::new(Light::Torch, 1_000),  // 12, GPIO 12: Vorburg, stone gate, right
+        Channel::new(Light::Torch, 1_000),  // 13, GPIO 13: Vorburg, wall walk of the palisade
     ],
 };
 
