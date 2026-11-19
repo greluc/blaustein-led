@@ -15,7 +15,7 @@ Its companions:
 | [hardware.md](hardware.md) | Controllers, driver stage, power, connectors, work on the bricks, installation |
 | [bill-of-materials.md](bill-of-materials.md) | The parts with articles and prices, and the orders by stage |
 | [lighting-practice.md](lighting-practice.md) | How brick models are lit, and the architectures that were compared |
-| [printed-parts.md](printed-parts.md) | Printed parts and their test plan |
+| [printed-parts.md](printed-parts.md) | Printed parts as a fallback, and their test plan |
 | [sources.md](sources.md) | Every source, and what stays unverified |
 
 ## Decisions
@@ -31,7 +31,7 @@ Taken by the owner on 2026-11-19.
 | Controller | The Raspberry Pi Pico 2 W, whose radio serves for updates and settings. The Pico 2 at hand is the test device |
 | Power | When all controllers are in place, one cable leaves the castle |
 | Driver stage | A buffer on 5 V for every channel; one wire per channel into a room, the resistor of each LED in the room |
-| Intervention | Bricks may be drilled, cut and glued where it serves the lighting, provided a replacement brick was ordered first. A printed part is the exception: only where it cannot be seen and a print is really worth it, such as a part that does not exist as a brick or a pocket for a connector. A plain hole is drilled |
+| Intervention | Bricks may be drilled, cut and glued where it serves the lighting, provided a replacement brick was ordered first. Nothing is printed as long as every brick that is needed can really be bought; a printed part is the fallback for one that cannot, and only where it cannot be seen |
 | Firmware | Rust is preferred. Reusing the existing firmware is no argument for or against a design; a new one may be written |
 | Skills, shops, budget | Through-hole soldering, no surface-mount work. Reichelt, BerryBase, Conrad, Völkner and Amazon; no orders shipped directly from China. No fixed budget |
 | Printers | A Prusa CORE One L and an Elegoo Saturn 4 Ultra 16K |
@@ -89,7 +89,7 @@ and the plan was reviewed against them. This is the result, decision by decision
 | Addressable LEDs are not worth it | **Kept**, with better reasons | A candle of 0.3 mA would be code 6 of 255. Newer types with 16 bits exist as bare chips only |
 | External PWM chips are not worth it | **Kept** | The common chip has 4096 steps at no more than 1526 Hz. A finer one with 16 bits exists, but its board is sold by none of the owner's shops |
 | The USB update needs only the reset interface | **Completed**, and the firmware confirmed | On Windows the device also needs a Microsoft OS 2.0 descriptor, and picotool finds it without options only under the vendor and product ID of the SDK. The `usb-update` feature has both, and its constants match the Pico SDK and picotool, see [Firmware](#firmware) |
-| Printed parts | **New** | Printed parts that clamp are realistic after a calibration on the owner's printers and bricks, see [printed-parts.md](printed-parts.md). They are the exception: only where they cannot be seen, because their colour and gloss do not match the set, and only where a print is really worth it. A plain hole is drilled into an original |
+| Printed parts | **Examined, kept as a fallback** | Printed parts that clamp are realistic after a calibration on the owner's printers and bricks, but they match neither the colour nor the clutch of the set, see [printed-parts.md](printed-parts.md). The owner leaves printing out as long as every brick that is needed can be bought; bought bricks, worked on where necessary, do every job of this plan |
 | A light kit might exist | **Settled** | None exists for any of these sets. The parts of one kit maker were examined one by one; its contact plates for removable floors are the one part worth a test |
 
 ## Lighting concept
@@ -340,11 +340,11 @@ faults show before wires are built in.
 6. **Power lead.** Supply, magnetic lead, socket.
    - Checkpoint: detach and attach twenty times, the firmware starts every time. Then a run of
      24 hours.
-7. **Trial on spare bricks.** Every operation on the bricks is tried on a spare brick first. Where
-   a printed part is worth it, the calibration print of [printed-parts.md](printed-parts.md) comes
-   before it.
-   - Checkpoint: a drilled spare still clamps between two originals. A printed part clamps
-     slightly lighter than an original and sits flush between originals.
+7. **Trial on spare bricks.** Every operation on the bricks is tried on a spare brick first, and so
+   is the way bricks hold the board and the socket of the lead. Nothing is printed unless a brick
+   turns up that cannot be bought.
+   - Checkpoint: a drilled spare still clamps between two originals. The brick that holds the
+     socket stays in place while the lead is attached and detached twenty times.
 8. **Stage 1 in the model.** Base castle and Bergfried.
    - Checkpoint: the floors and the keep come off, no brick stands proud, no wire is visible. The
      picture is tuned in the dark.
@@ -365,8 +365,8 @@ What no source could settle is listed with what was tried under
 - Whether an update over the radio works on the Pico 2 W, and what its radio draws.
 - Whether the board of zone 1 fits the chamber under the terrace.
 - Whether the replacement bricks match the set.
-- Whether a printed part clamps well enough on the bricks of this set, for the few places where
-  one is worth it.
+- Whether every brick that is needed can really be bought. Only one that cannot is a case for a
+  printed part.
 - How a controller knows its channel table, once there are several.
 - Whether data passes the magnetic coupling.
 - The size and quality of the 1.25 mm connectors, which have no datasheet.
