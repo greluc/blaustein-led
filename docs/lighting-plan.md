@@ -1,27 +1,40 @@
 # Lighting plan
 
-The goal is to make the BlueBrixx model Burg Blaustein (the full-size version, with every expansion
-and the side buildings) look alive: flames at the fireplaces, torches inside and outside, candles
-and a faint light in the rooms. The Raspberry Pi Pico 2 hides in the rock base, cables run from
-there to the LEDs without drilling or removing bricks where it can be avoided, and the installation
-is switched by cutting its power. Rust and the Pico 2 are fixed.
+The goal is to make the BlueBrixx model Burg Blaustein look alive: flames at the fireplaces, torches
+inside and outside, candles and a faint light in the rooms. The controllers hide inside the castle,
+one power lead enters it, and the installation is switched by cutting its power. The lighting grows
+with the model, one set after the other.
 
-This document holds the analysis that led to the plan, the lighting concept, the channel plan, the
-firmware work and the steps to build it. The wiring, the power supply, the installation rules and
-the bill of materials are in [hardware.md](hardware.md).
+This document holds the decisions, the analysis that led to the plan, what the research of
+2026-11-19 changed, the lighting concept, the channel plan, the stages and the steps to build it.
+Its companions:
+
+| Document | Content |
+| --- | --- |
+| [model.md](model.md) | The sets, their light points, joints and cavities |
+| [hardware.md](hardware.md) | Controllers, driver stage, power, connectors, work on the bricks, installation |
+| [bill-of-materials.md](bill-of-materials.md) | The parts with articles and prices, and the orders by stage |
+| [lighting-practice.md](lighting-practice.md) | How brick models are lit, and the architectures that were compared |
+| [printed-parts.md](printed-parts.md) | Printed parts and their test plan |
+| [sources.md](sources.md) | Every source, and what stays unverified |
 
 ## Decisions
 
-Taken by the owner on 2026-11-19:
+Taken by the owner on 2026-11-19.
 
 | Question | Decision |
 | --- | --- |
-| Scope | The full build: base castle, all expansions up to the Schildwerk, and the side buildings Rüstmeister, Stallungen and Zehntscheune |
-| Installed today | Nothing; the plan is implemented from scratch |
-| Place for the Pico | The rock base of the base castle; it is hollow and reachable |
-| Kinds of light | Fire and torches, candles, and a faint ambient light in rooms without a fire |
-| Firmware update | Through USB with the Pico in place, as an optional Cargo feature; the Pico is socketed as well |
-| Light points per module | Open. To be researched by a session that can reach the manufacturer's pages, see [research-brief.md](research-brief.md) |
+| Scope | The full build: base castle and all expansions up to the Schildwerk, finally on the display base. The side buildings Rüstmeister, Stallungen and Zehntscheune are an optional last step |
+| Order | In stages. First only the base castle with the Bergfried is lit, which is what stands today; then each expansion is added one by one as it is built, see [Stages](#stages) |
+| Kinds of light | Fire, candles and a faint light in rooms without a fire. Torches are added generously at gates, platforms and wall walks, although no set has a torch holder |
+| Architecture | Controllers inside the castle, as many as necessary and as few as possible; not one per expansion |
+| Controller | The Raspberry Pi Pico 2 W, whose radio serves for updates and settings. The Pico 2 at hand is the test device |
+| Power | When all controllers are in place, one cable leaves the castle |
+| Driver stage | A buffer on 5 V for every channel; one wire per channel into a room, the resistor of each LED in the room |
+| Intervention | Bricks may be drilled, cut and glued where it serves the lighting, provided matching replacement bricks were ordered first |
+| Firmware | Rust is preferred. Reusing the existing firmware is no argument for or against a design; a new one may be written |
+| Skills, shops, budget | Through-hole soldering, no surface-mount work. Reichelt, BerryBase, Conrad, Völkner and Amazon; no orders shipped directly from China. No fixed budget |
+| Printers | A Prusa CORE One L and an Elegoo Saturn 4 Ultra 16K |
 
 ## Analysis of version 2.0.0
 
@@ -31,211 +44,266 @@ host simulation of the installed configuration over 200,000 ticks (50 minutes).
 
 | Topic | Finding | Assessment |
 | --- | --- | --- |
-| Memory | 5.5 KB of flash (0.13 % of 4 MB) and 880 bytes of static RAM with 16 channels | Nothing to do |
+| Memory | 5.5 KB of flash and 880 bytes of static RAM with 16 channels | Nothing to do |
 | CPU load | About 0.1 %, the core sleeps otherwise. An estimate from the code, not measured | Nothing to do |
 | Tests | 26 host tests passed, the firmware built without warnings | Good |
 | Cutting the power as a switch | The firmware never writes to flash and keeps no state. Watchdog of 1 s, a panic resets | Good, a hard power-off is uncritical |
-| Lockstep | The breathing envelope was identical and in phase on all channels. Correlation between any two channels 0.65, with the baseline profile 0.99. The pattern repeated after exactly 5 s (autocorrelation 0.65) | The largest defect: the whole castle breathed together |
-| README claim | "the flames never move in lockstep" held for the noise only, not for the envelope | Wrong |
-| Parameters | `max_intensity: 128` bounded the envelope only. The frequent flares added about 72 on average, so the output ran from 18 to 250 with a mean of 140 | Misleading, brightness hard to set |
-| Flame types | Every channel used the same profile | Hearth, torch, candle, ember and ambient light need characters of their own |
-| Resolution in the dark | The intensity had 8 bits before the gamma curve. From step 20 to 21 the brightness jumped by 11 % (36 to 40 counts) | Irrelevant for a bright flame, visibly steppy for embers and ambient light |
-| PWM phases | The eight slices started one right after the other, a few microseconds apart by estimate, so their on-phases overlapped almost completely | Needless current peaks on long thin wires |
-| Resistors | The README recommended 330 Ω to 1 kΩ. 330 Ω on an orange LED are about 3.9 mA, 63 mA at peak with 16 channels | Too tight for 16 channels, 680 Ω to 1 kΩ is better |
-| Hardware documentation | The README named "GPIO, resistor, LED, ground" only. Channel plan, schematic, bill of materials and location were missing | The real build could not be assessed |
-| Maintenance | Flashing needed the BOOTSEL button on the Pico | Impractical once buried in the rock |
+| Lockstep | The breathing envelope was identical and in phase on all channels. Correlation between any two channels 0.65. The pattern repeated after exactly 5 s | The largest defect: the whole castle breathed together |
+| Parameters | `max_intensity: 128` bounded the envelope only; the output ran from 18 to 250 | Misleading, brightness hard to set |
+| Flame types | Every channel used the same profile | Hearth, torch, candle, ember and room light need characters of their own |
+| Resolution in the dark | The intensity had 8 bits before the gamma curve; from step 20 to 21 the brightness jumped by 11 % | Visibly steppy for embers and room light |
+| PWM phases | The eight slices started one right after the other, so their on-phases overlapped almost completely | Needless current peaks on long thin wires |
+| Hardware documentation | Channel plan, schematic, bill of materials and location were missing | The real build could not be assessed |
+| Maintenance | Flashing needed the BOOTSEL button | Impractical once the controller is built in |
 
-More work on size or speed brings nothing measurable. The effort belongs to the look of the flame,
-the electrical design and the documentation.
+Stage 1 of the rework removed the lockstep, bounded the brightness by `peak`, added presets for five
+roles and raised the intensity to 16 bits. More work on size or speed brings nothing measurable.
+
+## What the research changed
+
+The first version of this plan was written without access to any web page. On 2026-11-19 every
+source was opened, the building instructions of all sets were read, alternatives were researched,
+and the plan was reviewed against them. This is the result, decision by decision.
+
+| Earlier plan | Verdict | Why |
+| --- | --- | --- |
+| One controller with all channels in the rock of the base castle | **Changed** to one controller per zone of neighbouring sets | The rock has one chamber of useful height, and the expansions move the base castle into the middle of the model. A central board would have needed a trunk from every set and up to seven contacts at one joint. Controllers in the zones need two contacts between zones, hide in the model from the first stage, and let each stage be built and tested on its own |
+| A Pico 2 with 16 channels, ten more through PIO if needed | **Changed** to several Pico 2 W | Three of them give 48 channels at the full resolution, so every fire and nearly every torch moves on its own. Their radio updates the controllers the power lead does not reach |
+| A controller of another family | **Examined and dropped** | No board dims finer at 25 kHz: the candidates reach 6000 to 7200 counts, an ESP32 about 2000. Another family changes neither the contacts nor the space the design needs |
+| LEDs hang directly on the 3.3 V pins | **Changed** to a buffer on 5 V | Warm white needs typically 2.7 V and at most 3.3 V at 5 mA and is five times as bright as orange, so a candle would take a fraction of a milliampere from half a volt of headroom. For amber and red the direct drive would have held |
+| One resistor per LED on the control board, one wire per LED | **Changed**: one protective resistor per channel on the board, the resistor of each LED in its room | A wire per LED would have needed seven contacts at the joint under the hall of the base castle. Light kits cross such a joint with two |
+| The 3.3 V rail is regulated, so ripple does not show | **Wrong** | The regulator of the Pico 2 is a switching regulator that works in bursts at light load. The LEDs now run from the 5 V of the supply |
+| 40 mA in total, because the chip allows 50 mA | **Corrected** | 50 mA is the limit of the RP2040. The RP2350 allows 100 mA. With buffers the limit no longer matters |
+| The Pico 2 has eight ground pins | **Corrected** | Seven, and a separate analogue ground |
+| Nothing is drilled, cut or glued | **Changed by the owner** | Bricks may be worked on once replacement bricks are at hand. A drilled seat for each LED and drilled passages for wires remove the largest open risk of the plan, the wire clamped under a wall |
+| Magnetic Micro-USB coupling | **Kept**, as an add-on to a flush socket | One maker specifies a magnetic cable for data. No independent test exists, so the tip sits in a normal socket that also takes an ordinary cable |
+| A Micro-USB to USB-C adapter of Joy-IT for a USB-C socket in the rock | **Dropped** | It has a USB-C plug and a Micro-USB socket, the wrong direction; the controller has Micro-USB, so no adapter is needed |
+| The 5.1 kΩ rule of USB-C, cited from a forum thread | **Confirmed**, from another source | The thread does not state it; an application note of Microchip does |
+| Pin headers of 2.54 mm as connectors | **Changed** to keyed wire-to-wire pairs and magnetic connectors | Headers are not keyed and a plug goes on shifted |
+| Trunk of 0.14 mm² wire, enamelled wire of 0.1 mm | **Changed** | The 0.14 mm² wire on sale is 1.3 mm thick. The LEDs come on enamelled wire of 0.15 mm; a stranded micro cable of 0.28 mm serves the runs in a zone |
+| Cables rise in chimneys and in stacked round bricks | **Corrected** | The hoods of the fireplaces are solid and no chimney is known to be hollow. The model offers a well shaft, tower shafts, joist bays and a pillar instead |
+| A forge in the Saalbau, a chapel, a half-timbered house with a fire | **Corrected** | The forge stands in the Rüstmeister. The Saalbau has a fireplace in the hall, a tiled stove in the chambers and an altar niche. The Vorburg has no fire at all |
+| Gate torches on channels of their own | **Kept**, as an addition | No set has a torch holder. Torches are added with a few original parts |
+| Five light roles | **Kept** | The presets match how real flames behave: a candle burns almost steadily, and a flame flickers the slower the larger it is. Room light shares a candle channel, because steady roles can share without showing it |
+| Amber LEDs for flames, warm white of 2000 K to 2700 K for candles | **Kept as the first choice, with two bench comparisons** | A kit maker lights fire with white light behind transparent orange parts. No pre-wired LED below 2600 K was found, so a candle is compared in warm white, in yellow and behind a transparent yellow part |
+| Addressable LEDs are not worth it | **Kept**, with better reasons | A candle of 0.3 mA would be code 6 of 255. Newer types with 16 bits exist as bare chips only |
+| External PWM chips are not worth it | **Kept** | The common chip has 4096 steps at no more than 1526 Hz. A finer one with 16 bits exists, but its board is sold by none of the owner's shops |
+| The USB update needs only the reset interface | **Completed** | The constants were verified against the Pico SDK and picotool. On Windows the firmware also needs a Microsoft OS 2.0 descriptor, and picotool finds the device without options only under the vendor and product ID of the SDK |
+| Printed parts | **New** | Printed parts that clamp are realistic after a calibration on the owner's printers and bricks, see [printed-parts.md](printed-parts.md). With drilling allowed they are a choice, not a necessity |
+| A light kit might exist | **Settled** | None exists for any of these sets. The parts of one kit maker were examined one by one; its contact plates for removable floors are the one part worth a test |
 
 ## Lighting concept
 
-Five light roles replace the single flame. Each has its own LED colour, placement and motion. The
-times are starting values to be tuned on the model, not measurements.
+Each role has its own LED colour, placement and motion. The times are starting values to be tuned
+on the model, not measurements.
 
 | Role | Where | LED | Placement | Motion |
 | --- | --- | --- | --- | --- |
-| Hearth | Hall, kitchen, chambers, keep | Amber or orange for the flame, red for the embers | Flame LED under the logs behind transparent orange parts, ember LED sideways in the mantel | Irregular swell over 1 s to 3 s plus lively flicker, embers dragged along sluggishly |
-| Torch | Gate, courtyard, wall walk, outer walls | Amber or orange, size 0402 | Under or behind the transparent flame part | Fast and restless, small swing, occasional gusts |
-| Candle | Bedroom, chapel, archive, guard room, table | Warm white, 2000 K to 2700 K if available | On a table or wall bracket, very faint | Almost steady, a rare short twitch |
-| Ember | Forge, oven | Red, at the forge orange as well | Deep in the firebox, indirect | Very slow glow |
-| Ambient | Rooms without a fire of their own, half-timbered house | Warm white, one or two per room | Hidden behind a lintel or beam, lighting a wall or the ceiling | Constant and dim with a few percent of unrest |
+| Hearth | Kitchen, halls, living room of the keep | Amber for the flame, red for the embers | Under or behind the transparent red and orange parts of the fire | Irregular swell over 1 s to 3 s plus lively flicker; embers dragged along sluggishly |
+| Torch | Gates, courtyard, platforms, wall walks | Amber | Under or behind an added flame part | Fast and restless, small swing, occasional gusts |
+| Candle | Candelabra, wall candles, flame bowls, lanterns | Warm white | At the candle, very faint | Almost steady, a rare short twitch |
+| Ember | Tiled stove, forge | Red, with amber | Deep in the firebox, indirect | Very slow glow |
+| Ambient | Rooms without a light of their own | Warm white | Hidden behind a lintel or beam, lighting a wall or the ceiling | The glow of a candle that is not modelled; it shares a candle channel |
 
-Large fireplaces get two LEDs. The bright flame and the red, sluggish embers together give the
-colour shift of a real fire.
+Every fireplace gets two LEDs on two channels. The bright flame and the red embers that follow it
+sluggishly give the colour shift of a real fire.
 
 ## Channel plan
 
-Sixteen channels are enough for the full build if every real fire gets a channel of its own and
-candles, ambient light and torches far apart share channels. The table is a draft: the rooms come
-from shop and blog descriptions that were available as search results only, and the interiors of
-Hurde, Münzturm and Schildwerk are unknown. It is confirmed against the model and the building
-instructions before anything is wired.
+Each controller has 16 channels, numbered in the order in which they are installed. The plan is a
+draft from the building instructions. It is confirmed on the model, stage by stage, while the sets
+are built.
 
-| Channel | GPIO | Place | Role | LEDs |
+### Controller 1: base castle, Bergfried, Vorburg
+
+| Channel | Stage | Place | Role | LEDs |
 | --- | --- | --- | --- | --- |
-| 0 | 16 | Base castle, hall: fireplace flame | Hearth | 1 amber |
-| 1 | 17 | Base castle, hall: fireplace embers | Ember, following channel 0 | 1 red |
-| 2 | 18 | Base castle, kitchen: cooking fire | Hearth | 1 amber, 1 red |
-| 3 | 19 | Base castle, bedroom | Candle | 1 warm white |
-| 4 | 20 | Base castle, courtyard | Torch | 1 or 2 amber |
-| 5 | 21 | Keep, living room: fireplace | Hearth | 1 amber, 1 red |
-| 6 | 22 | Keep, guard platform | Torch | 1 amber |
-| 7 | 7 | Saalbau, chambers: fireplace | Hearth | 1 amber, 1 red |
-| 8 | 8 | Saalbau, knights' hall: table and chandelier | Candle | 2 warm white |
-| 9 | 9 | Saalbau, chapel | Candle | 1 or 2 warm white |
-| 10 | 10 | Gatehouse, left gate torch, and wall walk of the Hurde | Torch | 2 amber |
-| 11 | 11 | Gatehouse, guard room and archive | Candle | 2 warm white |
-| 12 | 12 | Forge | Ember | 1 red, 1 orange |
-| 13 | 13 | Vorburg, half-timbered house | Ambient | 2 warm white |
-| 14 | 14 | Gatehouse, right gate torch, and wall walk of the Schildwerk | Torch | 2 amber |
-| 15 | 15 | Münzturm | Candle or ambient | 1 or 2 warm white |
+| 0 | 1 | Base castle, kitchen: flame of the cooking fire | Hearth | 1 amber |
+| 1 | 1 | Base castle, kitchen: embers | Ember, following channel 0 | 1 red |
+| 2 | 1 | Base castle, hall: flame of the fireplace | Hearth | 1 amber |
+| 3 | 1 | Base castle, hall: embers | Ember, following channel 2 | 1 red |
+| 4 | 1 | Base castle, hall: candelabrum and flame bowl; bedroom | Candle | 4 warm white |
+| 5 | 1 | Bergfried, living room: flame of the fire | Hearth | 1 amber |
+| 6 | 1 | Bergfried, living room: embers | Ember, following channel 5 | 1 red |
+| 7 | 1 | Bergfried, entrance level: flame bowl | Candle | 1 warm white |
+| 8 | 1 | Base castle: courtyard | Torch | 1 amber |
+| 9 | 1 | Bergfried: guard platform | Torch | 1 amber |
+| 10 | 2 | Vorburg: watchtower candles, guard house, workshop | Candle | 5 warm white |
+| 11 | 2 | Vorburg: stone gate, left | Torch | 1 amber |
+| 12 | 2 | Vorburg: stone gate, right | Torch | 1 amber |
+| 13 | 2 | Vorburg: wall walk of the palisade | Torch | 1 amber |
+| 14, 15 | | Reserve | | |
 
-- The order follows the firmware: GPIO 16 to 22, then GPIO 7 to 15.
-- Two LEDs on one channel flicker identically. Only LEDs that are never seen side by side share a
-  channel; the two gate torches are on different channels on purpose.
-- The sources do not say clearly whether the forge belongs to the Saalbau or to the Rüstmeister.
-- The side buildings Stallungen and Zehntscheune have no channel yet; a lantern each would share
-  an ambient channel.
-- If 16 channels are not enough, up to 26 are possible: the ten free pins (GPIO 0 to 6 and 26 to
-  28) can run as PWM through PIO, for which Embassy ships a program. Effort and resolution have
-  not been examined.
+### Controller 2: Saalbau, Hurde, Münzturm
+
+| Channel | Stage | Place | Role | LEDs |
+| --- | --- | --- | --- | --- |
+| 0 | 3 | Saalbau, knights' hall: flame of the fireplace | Hearth | 1 amber |
+| 1 | 3 | Saalbau, knights' hall: embers | Ember, following channel 0 | 1 red |
+| 2 | 3 | Saalbau, chambers: tiled stove | Ember | 1 red, 1 amber |
+| 3 | 3, 4 | Saalbau, knights' hall: candelabrum, wall candle, altar; from stage 4 also the galleries of the Hurde | Candle | 3 warm white, later 5 |
+| 4 | 3 | Saalbau: candlestick of the chambers, flame bowl of the cellar | Candle | 2 warm white |
+| 5 | 5 | Münzturm: candle of the chamber | Candle | 1 warm white |
+| 6 | 5 | Münzturm: platform with the gun | Torch | 1 amber |
+| 7 to 15 | | Reserve | | |
+
+### Controller 3: Torhaus, Schildwerk
+
+| Channel | Stage | Place | Role | LEDs |
+| --- | --- | --- | --- | --- |
+| 0 | 6 | Torhaus: desk, sleeping floor, guard room | Candle | 3 warm white |
+| 1 | 6 | Torhaus: main gate, left | Torch | 1 amber |
+| 2 | 6 | Torhaus: main gate, right | Torch | 1 amber |
+| 3 | 6 | Torhaus: platform with the ballista | Torch | 1 amber |
+| 4 | 7 | Schildwerk: passage | Torch | 1 amber |
+| 5 | 7 | Schildwerk: terrace | Torch | 1 amber |
+| 6 | 7 | Schildwerk: lantern of the terrace | Candle | 1 warm white |
+| 7 to 15 | | Reserve | | |
+
+- The castle up to the Schildwerk uses 43 LEDs on 28 channels: 16 amber, 5 red and 22 warm white.
+  Stage 1 uses 13 LEDs on ten channels: 5 amber, 3 red and 5 warm white.
+- Every fire and every torch moves on its own. Only candles and room light share channels, which
+  does not show because they are nearly steady.
+- A fourth controller serves the side buildings in the last stage: the forge of the Rüstmeister,
+  the fire bowls of the Stallungen and the Hilfsschmiede, lanterns and candles.
+- The reserve takes what the model still hides. Two points of the instructions may be fires: a
+  block with a red part in the chamber of the Münzturm and coloured tiles in the yard of the
+  Torhaus.
+- The channels map to the pins as in the firmware today: GPIO 16 to 22, then GPIO 7 to 15.
+
+## Stages
+
+The lighting grows with the model. Nothing that was installed in an earlier stage is soldered
+again.
+
+| Stage | Set | What its instruction takes apart first | Lights it adds | Controller |
+| --- | --- | --- | --- | --- |
+| 1 | Base castle with Bergfried | Nothing; both stand | Kitchen fire, fireplace of the hall, candles of the hall and the bedroom, fire and flame bowl of the keep, two torches | 1 arrives, in the chamber under the terrace |
+| 2 | Vorburg | The palisade, the log gatehouse, the keep as one unit and the upper floors. The rest of the base castle is set onto the new base in one piece | Candles of the watchtower and the guard house, two gate torches, a torch on the wall walk | 1 |
+| 3 | Saalbau | Trees, rock pieces, a lean-to roof, a door and wall sections on the side of the keep | Fireplace of the knights' hall, tiled stove, candles | 2 arrives |
+| 4 | Hurde | The roof and battlements of the keep, roof and wall-walk parts of the Saalbau. The castle is set onto the plinth | Light in the galleries; the torch of the keep moves to its new wooden top storey | 2, and 1 |
+| 5 | Münzturm | 76 steps of removal, not yet read in detail | Candle of the chamber, torch on the platform | 2 |
+| 6 | Torhaus | 52 steps of removal, among them the wooden ramp and a palisade section. The half-timbered storey of the guard house moves onto a new yard building and takes its light along | Candles of the gatehouse, two torches at the main gate, a torch on the platform | 3 arrives |
+| 7 | Schildwerk | The whole wooden yard, lifted off as one assembly | Torches of the passage and the terrace, a lantern | 3 |
+| 8 | Display base with the side buildings | Not published | Forge, fire bowls, lanterns and candles of the side buildings | 4 arrives |
+
+What makes this work:
+
+- **A zone is complete in itself.** Its controller, its wiring and its LEDs are built and tested on
+  the bench and in the model before the next zone exists. A later zone adds a 5 V branch and
+  nothing else.
+- **As few controllers as possible.** A set joins the controller of its neighbour as long as that
+  has free channels and the trunk does not cross a boundary the next instruction takes apart.
+- **Every unit that an instruction lifts off has a plug at its foot:** the upper floors of the base
+  castle, the keep, the wooden yard, the storey of the guard house. The next instruction can take
+  the model apart without touching a solder joint.
+- **One lead from the first day.** It enters at the first controller. Stage 3 and stage 6 each add
+  a fused branch inside the model; the display base moves the socket to its edge.
+- **Before a stage is wired, the removal steps of the next instruction are read.** A light goes
+  only where the next instruction leaves it standing, or it gets a plug. The torch on the guard
+  platform of the keep is the known case: the Hurde replaces the battlements under it. The gate
+  torches of the Vorburg are the suspected one, because the Münzturm and the Torhaus rebuild that
+  corner.
 
 ## Not worth doing
 
-- **Shrinking flash and RAM further.** 0.13 % of the flash was in use.
-- **Lowering the clock.** The PWM resolution hangs on the system clock, and nothing noticeable is
-  saved at the power supply.
-- **Addressable LEDs (WS2812).** Only 8 linear bits per colour, steppy in the dark, a larger
-  package, and the chain fails behind a broken spot. For warm fire, single LEDs on the hardware
-  PWM are better.
-- **External PWM chips.** The built-in PWM with 25 kHz and about 12.5 bits beats common I2C
-  drivers.
+- **Shrinking flash and RAM further, or lowering the clock.** A fraction of a percent of the flash
+  is in use, and the PWM resolution hangs on the system clock.
+- **One central controller.** It needs the most contacts at every joint, a trunk from every set
+  and the only bulky board of all designs.
+- **A controller per expansion.** Three controllers carry the castle; more would add update work
+  and 5 V branches for nothing.
+- **Addressable LEDs with 8 bits, and the model railway systems built on them.** A candle of
+  0.3 mA is code 6 of 255.
+- **Remote driver chips on a bus.** The common one has 4096 steps at no more than 1526 Hz; the
+  finer one is not on sale at the owner's shops, and four contacts would cross every joint.
+- **Decoders of model railways.** Fixed effects, up to 22 V in the model and the highest price.
+- **Kit lights and lights with a built-in flicker.** Their data are not published, and their fire
+  is a fixed pattern.
+- **Ready firmware for wireless controllers.** It updates over the air out of the box, but it dims
+  in about 2000 steps on six channels and offers general flicker effects only.
+
+The comparison behind these verdicts is in [lighting-practice.md](lighting-practice.md).
+
+## Firmware work that follows
+
+Stages 2 and 3 of the firmware rework are open. The research and the decisions add these
+requirements:
+
+- **Several controllers.** The same firmware runs on every controller with a channel table of its
+  own: a role, a peak and an optional source to follow per channel, and which channels are in use.
+  How a controller knows which table is its own is to be designed; a build per controller is the
+  simplest way.
+- **The Pico 2 W.** It has the pins of the Pico 2, so the channels stay on GPIO 7 to 22. Its
+  regulator is switched to steady operation through a pin of the radio chip, if the bench shows
+  that it matters.
+- **Update over the radio.** The driver `cyw43` of the Embassy project supports the radio chip. The
+  bootloader library `embassy-boot-rp` describes itself as made for the RP2040; whether it serves
+  the RP2350 is to be established first. The radio is on in a service window only.
+- **Update over USB,** for the first controller and as the fallback. The reset interface is vendor
+  specific with subclass `0x00` and protocol `0x01`; request `0x01` reboots into BOOTSEL, request
+  `0x02` into the flash image, each with the interface number in `wIndex`. picotool finds a running
+  RP2350 program without options only under vendor ID `0x2E8A` and product ID `0x0009`. On Windows
+  the device needs a Microsoft OS 2.0 descriptor and `bcdUSB` `0x0210`, or picotool cannot claim
+  the interface without a manually installed driver.
+- **As planned:** an identify build, staggered ignition, staggered PWM phases, a random start.
+
+Verified on the head of the rework on 2026-11-19: 59 host tests pass, formatting, Clippy and
+`cargo deny` pass, and the release image with sixteen channels has 4804 bytes of `.text`, 700 of
+`.rodata` and 1072 of `.bss`. Nothing has been flashed to a board.
 
 ## Implementation steps
 
-Each step has a checkpoint. First the bench, then one floor, then the whole castle, so faults show
-before wires are built in.
+Each step has a checkpoint. First the bench, then one zone, then one stage after the other, so
+faults show before wires are built in.
 
-1. **Bench setup.** Pico 2 on a breadboard, one LED of every colour with the starting resistors.
-   - Checkpoint: the brightness fits in a darkened room and the resistor values are fixed.
-2. **Firmware.** Tune the roles on the bench setup.
+1. **First order.** The parts of [bill-of-materials.md](bill-of-materials.md) for stage 1, and two
+   or three bags of replacement bricks to compare with the set.
+   - Checkpoint: the forward voltage of every LED is measured at 0.3 mA, 1 mA and 3 mA. The
+     replacement bricks match the set in colour and clutch, or serve for hidden places only.
+2. **Bench.** One buffer on a breadboard, one LED of every colour behind its resistor, driven by
+   the Pico 2 at hand.
+   - Checkpoint: the brightness fits in a darkened room and the resistor values are fixed. Amber
+     is compared with warm white behind the transparent orange parts of the set, and a candle in
+     warm white with one in yellow.
+3. **Radio.** An update of a Pico 2 W over its radio.
+   - Checkpoint: the update works twenty times in a row and survives a power cut in the middle. If
+     it does not, the controllers are updated through their USB sockets, and each needs a place
+     where its socket can be reached.
+4. **Firmware.** Stage 2 of the rework with the channel table; tune the roles on the bench.
    - Checkpoint: the look of every role is approved on the bench.
-3. **Board.** Perfboard with the socketed Pico, resistors and pin headers.
-   - Checkpoint: all 16 channels are verified in the identify build. The measured total LED current
-     is below 40 mA.
-4. **Power supply.** Lead, strain relief, coupling and power supply.
-   - Checkpoint: separate and reconnect twenty times, the firmware starts every time. Then a run of
+5. **Board of zone 1.** Perfboard with the socketed controller, two buffers and the outlets of
+   stage 1.
+   - Checkpoint: all 16 channels are verified in the identify build. No LED lights while the
+     firmware is not running, and none flashes at power-on. The board fits the chamber under the
+     terrace with its plug.
+6. **Power lead.** Supply, magnetic lead, socket.
+   - Checkpoint: detach and attach twenty times, the firmware starts every time. Then a run of
      24 hours.
-5. **Pilot in the base castle.** Hall, kitchen, bedroom and courtyard, channels 0 to 4, with the
-   floor connectors.
-   - Checkpoint: the floors come off, no brick stands proud, no wire is visible. The picture is
-     tuned in the dark.
-   - Decision: are 16 channels enough for the remaining modules?
-6. **Expansions.** Module by module along the channel plan, each with a connector at its joint.
-   - Checkpoint per module as in step 5.
-7. **Wrap-up.** Channel plan, photos and bill of materials in this repository, then a release.
+7. **Trial on spare bricks.** Every operation on the bricks, and the calibration print of
+   [printed-parts.md](printed-parts.md) if printed parts are wanted.
+   - Checkpoint: a drilled spare still clamps between two originals.
+8. **Stage 1 in the model.** Base castle and Bergfried.
+   - Checkpoint: the floors and the keep come off, no brick stands proud, no wire is visible. The
+     picture is tuned in the dark.
+9. **Stages 2 to 7.** For each expansion: read its removal steps, order its parts, wire it while it
+   is built, test it on its own, then join it.
+   - Checkpoint per stage: everything of the earlier stages still works after the rebuild.
+10. **Stage 8.** The socket of the lead moves to the edge of the display base; the side buildings
+    follow if wanted.
+11. **Wrap-up.** Circuit boards replace the perfboards; channel plan, photos and bill of materials
+    are brought up to date in this repository, then a release.
 
-## Unverified
+## Open points
 
-The session that wrote this plan could reach package registries only. No web page could be opened:
-bluebrixx.com, brickfact.com and the Raspberry Pi datasheet hosts did not resolve, and after two
-failures no further host was tried. Every statement below therefore rests on a search result
-snippet, on memory or on a calculation, and is confirmed against the source before it is relied on.
+What no source could settle is listed with what was tried under
+[Unverified](sources.md#unverified). The points that decide the next steps:
 
-- **Set.** Rooms, fireplaces, part counts, dimensions, item numbers and the order of the expansions
-  come from search result snippets, see [Sources not read](#sources-not-read).
-- **Datasheet values.** The permitted total GPIO current of the RP2350 and the power consumption of
-  the Pico 2 have not been looked up.
-- **LED data.** The forward voltages are typical values, not manufacturer data.
-- **Building technique.** Cable routes, clamping force and translucency are experience values of
-  lighting brick models, not tested on this set.
-- **Effect.** The simulation measures lockstep, not beauty. The look of the flame can only be
-  judged on the model.
-- **Hardware.** Nothing of the firmware described here has been flashed to a board by the session
-  that wrote it.
-
-## Open research
-
-What a session with internet access still has to verify, research and decide is specified in
-[research-brief.md](research-brief.md): every source and statement listed below, the light points
-of every set, best practice for lighting brick models, a modular connector system, a bill of
-materials of parts on sale in Germany, printed parts, and a review of this whole plan.
-
-## Sources
-
-### Read and measured
-
-- This repository at version 2.0.0: a release build with `llvm-size -A`, the 26 host tests and a
-  host simulation of the installed configuration over 200,000 ticks.
-- The source of embassy-rp 0.10.0 from the Cargo registry: `pwm.rs`, `watchdog.rs`, `clocks.rs`,
-  `gpio.rs`, `trng.rs`, `rom_data/rp235x.rs` and `pio_programs/pwm.rs`.
-- The crates.io index, which lists `usbd-picotool-reset`, `rp-usb-reset` and `drooling` as
-  implementations of the picotool reset interface.
-
-### Sources not read
-
-None of these pages was opened. The middle column is what this plan takes from the search result
-snippet; the right column is what to check when the page is read.
-
-#### The set
-
-| Source | Statement taken from the snippet | To check |
-| --- | --- | --- |
-| [BlueBrixx, Burg Blaustein 109778](https://www.bluebrixx.com/de/prod/109778/burg-blaustein/) | The base castle has a walled courtyard, a kitchen in the basement, a hall with a fireplace on the first floor and a bedroom in the attic | Rooms and fireplaces, part count, dimensions, which floors come off |
-| [BlueBrixx, Bergfried 109780](https://www.bluebrixx.com/en/prod/109780/blaustein-castle-keep-expansion/) | Tower with a secured entrance, a cellar, a living room with a fireplace and a bed, and a guard platform; the back comes out | Rooms, fireplace, whether the cellar offers room for electronics |
-| [BlueBrixx, Saalbau 109080](https://www.bluebrixx.com/en/prod/109080/blaustein-castle-hall-expansion/) | Vaulted cellar, chambers with a canopy bed and a fireplace, a knights' hall with a shield gallery and a banquet table, a passage to the chapel. A snippet also names a forge with a workbench, a grinding wheel and a glowing fire pit | Rooms and fireplaces; whether the forge is part of this set |
-| [BlueBrixx, Torhaus 109714](https://www.bluebrixx.com/en/prod/109714/blaustein-castle-gatehouse-expansion/) | Guard room with the winches for portcullis and drawbridge, tables and benches, an archive and an inner courtyard | Rooms, torch holders at the gate |
-| [BlueBrixx, Schildwerk 109715](https://www.bluebrixx.com/en/prod/109715/blaustein-castle-ramp-shield-expansion/) | Nothing beyond the name | Interior and light points |
-| [BlueBrixx, Blaustein category](https://www.bluebrixx.com/en/all-themes/middle-ages/blaustein-castle/) | The series also holds an Armourer (Rüstmeister), a Tithe Barn (Zehntscheune), stables and a figure pack | The complete list of sets and their item numbers |
-| BlueBrixx product pages of Vorburg, Hurde, Münzturm, Festungsspitzen, Rüstmeister, Stallungen and Zehntscheune (links not known) | Vorburg: a half-timbered house and wooden palisades. Stallungen: half-timbered, with a paddock. The others: nothing | Interiors and light points of each |
-| [mydealz, deal post](https://www.mydealz.de/deals/verfugbarkeitsdeal-bluebrixx-burg-blaustein-vorburg-2808492) | Item numbers: Bergfried 109780, Vorburg 109955, Saalbau 109080, Hurde 109711, Münzturm 109713, Torhaus 109714, Schildwerk 109715, Festungsspitzen 108932 | The item numbers; other pages name 104185, 108714 and 110451 for a Vorburg |
-| [Brickfact, dimensions](https://brickfact.com/de-de/blog/klemmbausteine/burg-blaustein-masse) | Base castle: 5,562 parts, 40.6 cm × 39.8 cm × 29.5 cm. The full build measures about 100 cm × 72 cm × 73.5 cm. Every expansion requires the ones before it | Dimensions and part counts; another snippet gives 5,747 parts |
-| [Steine-Kanal, overview](https://www.steine-kanal.de/burg-blaustein-von-bluebrixx-die-ultimative-uebersicht/) | The rooms of the base castle as above | Rooms of all sets |
-| [Steine-Kanal, order](https://www.steine-kanal.de/bluebrixx-burg-blaustein-reihenfolge-alle-erweiterungen-richtig-aufgebaut/) | Order: base castle, Bergfried, Vorburg, Saalbau, Hurde, Münzturm, Torhaus, Schildwerk; optional sets furnish the interior | The order; which sets are optional |
-| [CosmoShiva, order](https://cosmoshiva.de/burg-blaustein-alle-erweiterungen-die-richtige-reihenfolge-und-was-noch-geplant-ist/) | A different order for Hurde and Schildwerk | Which order is right |
-| [Klemmbaustein.com, expansions and releases](https://klemmbaustein.com/bluebrixx-burg-blaustein/) | A list of all expansions | Completeness of the list of sets |
-| [Das Klemmbrett, forum thread](https://klemmbrett.info/viewtopic.php?t=724) | Not used; listed as an overview of all expansions | Photos of interiors |
-| [Verklemmt und Zugenoppt, review](https://verklemmtundzugenoppt.de/burg-blaustein/) | The modular build lets the three floors be taken off | Which floors separate and how |
-| [PC Games Hardware, new edition](https://www.pcgameshardware.de/Klemmbausteine-Hardware-280122/News/Neuauflage-von-Burg-Blaustein-bietet-Drucke-und-Figuren-1484950/) | The new edition has a print on the mantelpiece | That the hall has a fireplace |
-
-#### Pico 2 and RP2350
-
-| Source | Statement taken from the snippet | To check |
-| --- | --- | --- |
-| [RP2350 datasheet](https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf) | Nothing; only the title came back | Permitted total GPIO current, pad drive strength at reset, state of the pads at reset, double buffering of the PWM `TOP` and `CC` registers, the wording and the affected revisions of erratum E9 |
-| [Pico 2 datasheet](https://pip-assets.raspberrypi.com/categories/1005-raspberry-pi-pico-2/documents/RP-008299-DS-2-pico-2-datasheet.pdf) | Nothing; only the table of contents came back | VSYS range, the diode from VBUS to VSYS, load limit of the 3V3 pin, power consumption, board dimensions, the BOOTSEL test point |
-| [Hardware design with RP2350](https://datasheets.raspberrypi.com/rp2350/hardware-design-with-rp2350.pdf) | Not used | Recommendations for powering the board |
-| [SunFounder, Pico 2](https://docs.sunfounder.com/projects/newton-lab-kit/en/latest/raspberry_pi_pico2.html) | VSYS takes about 1.8 V to 5.5 V; the 3V3 pin should carry less than 300 mA | Both values against the Pico 2 datasheet |
-| [Hackaday on erratum E9](https://hackaday.com/2024/09/20/raspberry-pi-rp2350-e9-erratum-redefined-as-input-mode-leakage-current) | E9 is a leakage current of input pads of up to 120 µA at 3.3 V; another snippet says revision A4 fixes it | What E9 means for buttons and sensors |
-| ULN2803A datasheet of Texas Instruments (link not known) | Nothing | Turn-on and turn-off times, against PWM pulses of 240 ns |
-| `usb_reset_interface.h` in the repository `raspberrypi/pico-sdk` and the README of `raspberrypi/picotool` (paths not known) | Nothing | The interface class, subclass and protocol, the request numbers and how picotool finds a device, against the `usb-update` feature |
-
-#### Power lead and installation
-
-| Source | Statement taken from the snippet | To check |
-| --- | --- | --- |
-| [mikrocontroller.net, USB-C without power](https://www.mikrocontroller.net/topic/578354) | A USB-C power supply gives no voltage over a C-to-C cable unless the sink has 5.1 kΩ on CC1 and CC2 | The statement, for variant B of the power supply |
-| [Joy-IT K-1483, datasheet](https://joy-it.net/files/files/Produkte/K-1483/Datenblatt%20K-1483.pdf) | A Micro-USB to USB-C adapter specified for data and power up to 3 A | Whether it carries the CC resistors |
-| [techtest.org, magnetic cables](https://techtest.org/die-guenstigen-magnetischen-usb-ladekabel-von-essager-im-test) | Cheap magnetic cables charge some devices slowly or not at all | Whether a magnetic adapter with data lines exists |
-| [Light My Bricks, cable management](https://www.lightmybricks.com.au/blogs/learning-centre/expert-tips-managing-lego-lighting-cables-power-docks) | Thin cables fit between and under bricks, plates and tiles if they lie between the studs; pieces must not be forced together around a cable | Wire gauges that fit; photos of the technique |
-| [Fechtner Modellbau, pre-wired LED](https://en.fechtner-modellbau.de/detail/index/sArticle/14130) | One offer of pre-wired 0402 LEDs names a 1.5 kΩ resistor on the anode for 7.2 V to 16 V; which offer of the result list said so is not known | That LEDs without a resistor are on sale, wire gauge and length |
-
-### Statements from memory
-
-These rest on no source at all and are checked like the snippets above:
-
-- The RP2040 permits 50 mA in total over all GPIOs.
-- The pads of the RP2350 drive 4 mA by default and are high impedance until the firmware
-  configures them.
-- A Raspberry Pi Pico 2 measures 51 mm × 21 mm and has eight ground pins.
-- Typical forward voltages at about 1 mA: 2.0 V for amber and orange, 1.9 V for red, 2.8 V for
-  warm white.
-- WS2812 LEDs have 8 linear bits per colour, and a broken LED cuts off the rest of the chain.
-- Common I2C PWM drivers such as the PCA9685 have 12 bits and about 1.5 kHz.
-- Many power banks switch off at a load of a few tens of milliamperes.
-- Round 1×1 bricks have a hollow stud, light bricks are slightly translucent, and superglue leaves
-  a white haze on plastic.
-
-Calculated, not looked up: 2.2 Ω per metre for copper wire of 0.1 mm, the resistor currents in
-[hardware.md](hardware.md), and 240 ns for 36 counts at 150 MHz.
+- The forward voltage of the LEDs at the planned currents, and their colour on the model.
+- Whether an update over the radio works on the Pico 2 W, and what its radio draws.
+- Whether the board of zone 1 fits the chamber under the terrace.
+- Whether the replacement bricks match the set.
+- Whether data passes the magnetic coupling.
+- The size and quality of the 1.25 mm connectors, which have no datasheet.
+- Every dimension of the model that was read from a drawing.
+- The look of the flame, which only the model can show.

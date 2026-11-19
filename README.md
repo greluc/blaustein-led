@@ -55,15 +55,18 @@ The source lives at [github.com/greluc/blaustein-led](https://github.com/greluc/
   | Channel A | GPIO 16 | GPIO 18 | GPIO 20 | GPIO 22 | GPIO 8 | GPIO 10 | GPIO 12 | GPIO 14 |
   | Channel B | GPIO 17 | GPIO 19 | GPIO 21 | GPIO 7 | GPIO 9 | GPIO 11 | GPIO 13 | GPIO 15 |
 
-- Wiring per channel: GPIO → series resistor → LED anode; LED cathode → GND. Start with about
-  1 kΩ for amber, orange and red and about 330 Ω for warm white.
+- Wiring per channel on a test bench: GPIO → series resistor → LED anode; LED cathode → GND. Start
+  with about 1 kΩ for amber, orange and red.
 
-Use a series resistor on every channel. The firmware assumes active-high LEDs. A GPIO drives only
-a few milliamperes, and the sum over all pins is limited as well: plan for at most 4 mA per pin and
-40 mA in total. For more than two LEDs or more brightness on a channel, switch the LEDs through a
-small logic-level MOSFET.
+Use a series resistor on every channel. The firmware assumes active-high LEDs. A pin of the RP2350
+resets to a drive strength of 4 mA, and all pins together may source 100 mA. A warm white LED needs
+typically 2.7 V and up to 3.3 V, which leaves a 3.3 V pin almost no headroom.
 
-[docs/hardware.md](docs/hardware.md) holds the full electrical design, the power supply and the
+The installation in the castle therefore does not hang its LEDs on the pins. It drives every
+channel through a buffer on 5 V. It is planned with one Raspberry Pi Pico 2 W per zone of the
+castle, three in all, fed by a single power lead; the firmware support for several controllers and
+for an update over the radio is still to come.
+[docs/hardware.md](docs/hardware.md) holds the electrical design, the power supply and the
 installation in the model; [docs/lighting-plan.md](docs/lighting-plan.md) holds the lighting
 concept and the channel plan.
 
@@ -189,9 +192,14 @@ the code itself builds on stable. CI runs all of the above on every pull request
 
 | Topic | Document |
 | --- | --- |
-| Lighting concept, channel plan and the analysis behind them | [docs/lighting-plan.md](docs/lighting-plan.md) |
-| Wiring, power supply, installation and bill of materials | [docs/hardware.md](docs/hardware.md) |
-| Research still to do, as a brief for a session with internet access | [docs/research-brief.md](docs/research-brief.md) |
+| Decisions, lighting concept, channel plan, stages and the steps to build it | [docs/lighting-plan.md](docs/lighting-plan.md) |
+| Controllers, driver stage, power, connectors, work on the bricks and installation | [docs/hardware.md](docs/hardware.md) |
+| Parts with articles and prices, and the orders by stage | [docs/bill-of-materials.md](docs/bill-of-materials.md) |
+| The sets: light points, joints and cavities | [docs/model.md](docs/model.md) |
+| How brick models are lit, and the comparison of architectures | [docs/lighting-practice.md](docs/lighting-practice.md) |
+| Printed parts and their test plan | [docs/printed-parts.md](docs/printed-parts.md) |
+| Every source, and what stays unverified | [docs/sources.md](docs/sources.md) |
+| The research brief and what became of it | [docs/research-brief.md](docs/research-brief.md) |
 | Contributing, checks and commit rules | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | Reporting a vulnerability | [.github/SECURITY.md](.github/SECURITY.md) |
 | Code of Conduct | [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) |

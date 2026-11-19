@@ -1,181 +1,334 @@
 # Hardware
 
 How the lights of Burg Blaustein are wired, powered and installed. This is the design for the full
-build: the base castle, every expansion and the side buildings. Nothing of it is installed yet, so
-every value marked as an assumption is confirmed on the bench before it goes into the model. The
-reasons behind the design and the list of open points are in [lighting-plan.md](lighting-plan.md).
+build, which grows in stages. Nothing of it is built yet, so every value marked as an assumption or
+a starting value is confirmed on the bench before it goes into the model. The reasons behind the
+design are in [lighting-plan.md](lighting-plan.md), the parts with their prices in
+[bill-of-materials.md](bill-of-materials.md), the model itself in [model.md](model.md) and every
+source in [sources.md](sources.md).
 
 ## Overview
 
-Everything electrical sits in the rock base. Only the short end of the power lead with its coupling
-shows outside, and only current-limited LED lines and ground run into the castle.
+The castle is divided into zones of neighbouring sets. Each zone has one controller on a small
+board, hidden in the model. One power lead enters the castle; inside, fused 5 V branches run from
+the first controller to the others. Beyond a controller only current-limited lines and ground run
+to the LEDs.
 
 ```mermaid
 flowchart TB
     subgraph outside [Outside]
         direction LR
         switch["Switched socket or timer"] --> supply["USB power supply, 5 V"]
-        supply --> coupling["Magnetic coupling"]
+        supply --> lead["One magnetic USB lead"]
     end
-    subgraph rock [Inside the rock base]
+    subgraph zone1 [Zone 1, base castle]
         direction LR
-        lead["Micro-USB extension<br>with data lines, strain-relieved"] --> pico["Pico 2, socketed<br>16 PWM channels, 3.3 V"]
-        pico --> resistors["Series resistors<br>one per LED"]
-        resistors --> headers["Pin headers<br>one per module, plus ground"]
+        socket["Flush Micro-USB socket"] --> k1["Controller 1<br>Pico 2 W, buffers, 16 channels"]
+        k1 --> fuses["One fuse per further zone"]
     end
-    subgraph castle [Inside the castle]
+    subgraph zone2 [Further zones]
         direction LR
-        trunk["Trunk cable<br>stranded wire, one core per channel"] --> plug["Connector<br>at every floor and expansion"]
-        plug --> tail["Enamelled wire<br>last centimetres only"]
-        tail --> leds["LEDs<br>hearth, torch, candle, ember, ambient"]
+        k2["Controller 2<br>Saalbau"]
+        k3["Controller 3<br>Torhaus"]
     end
-    coupling -- "5 V over USB" --> lead
-    headers -- "current-limited lines and ground only" --> trunk
+    subgraph rooms [Rooms of a zone]
+        direction LR
+        joint["Connector at every unit<br>that lifts off"] --> strip["Distribution strip<br>one resistor per LED"]
+        strip --> leds["LEDs"]
+    end
+    lead -- "5 V and data over USB" --> socket
+    fuses -- "5 V and ground, two contacts" --> k2
+    fuses -- "5 V and ground, two contacts" --> k3
+    k1 -- "current-limited lines and ground" --> joint
 ```
 
-## Electrical design
+## Zones and controllers
 
-Every LED has its own series resistor and hangs directly on its PWM pin: GPIO → resistor → LED
-anode, LED cathode → ground. The resistors sit on the board in the rock base. No driver stage is
-needed at these currents, for three reasons:
+A controller serves as many sets as it can: the rule is as many controllers as necessary and as few
+as possible. A new controller is added only when the 16 channels of the last one are used up, or
+when a trunk would have to cross a boundary that the next building instruction takes apart.
 
-- At power-on the pins are high impedance and the LEDs stay dark until the firmware runs. With
-  transistors, every stage would need a pull-down.
-- The LED current comes from the regulated 3.3 V rail of the Pico 2, so ripple of a cheap power
-  supply does not show as flicker.
-- The shortest PWM pulses are about 240 ns long (36 counts at 150 MHz and 25 kHz). A GPIO switches
-  that cleanly. A Darlington array such as the ULN2803A is assumed to be too slow for it; its
-  datasheet has not been checked.
-
-### Series resistors
-
-| LED | Assumed forward voltage | Starting resistor | Current |
+| Controller | Arrives with | Sits | Serves |
 | --- | --- | --- | --- |
-| Amber, orange | 2.0 V | 1 kΩ | 1.3 mA |
-| Red | 1.9 V | 1 kΩ | 1.4 mA |
-| Warm white | 2.8 V | 330 Ω | 1.5 mA |
+| 1 | Stage 1, the base castle with the Bergfried | In the chamber under the terrace of the base castle | Base castle, Bergfried, and from stage 2 the Vorburg |
+| 2 | Stage 3, the Saalbau | In the Saalbau; cellar, pillar or roof, to be chosen on the model | Saalbau, the galleries of the Hurde, the Münzturm |
+| 3 | Stage 6, the Torhaus | In the Torhaus; stair tower or roof | Torhaus, Schildwerk |
+| 4 | Stage 8, the side buildings | In the display base or in one of the side buildings | Rüstmeister, Stallungen, Zehntscheune |
 
-The forward voltages are typical values at low current, not manufacturer data. Recalculate with the
-datasheet of the LEDs that are bought: `R = (3.3 V − Vf) / I`. The resistor sets the brightness
-coarsely, the firmware sets it finely.
+Three controllers light the castle. Two would do by the count of channels; the third saves trunks
+across the whole model.
 
-### Rules
+### The controller
 
-- **Warm white is tight.** Only about 0.5 V remain for the resistor, so the brightness varies from
-  LED to LED. Trim every warm white LED on its own.
-- **Check pre-wired LEDs.** Many carry a built-in resistor for 12 V; one offer states 1.5 kΩ. On
-  3.3 V they stay very dim. Buy them without a resistor or remove it.
-- **Current budget.** The channel plan reaches about 39 mA with up to 28 LEDs if all of them are
-  fully on at once; the average is far lower. The design limits are 40 mA in total and 4 mA per
-  pin. The permitted total GPIO current of the RP2350 has not been looked up; for the RP2040 it is
-  50 mA from memory.
-- **No ground over enamelled wire.** Enamelled copper wire of 0.1 mm has 2.2 Ω per metre. If one
-  such wire carried the ground of all channels over 1.5 m, 0.12 V would drop across it and the
-  channels would modulate each other. Ground runs to the board as stranded wire of 0.14 mm² per
-  module; the Pico 2 has eight ground pins for that.
-- **Shorts are harmless.** If a wire chafes through, at most 10 mA flow. This holds as long as
-  neither 5 V nor 3.3 V runs into the castle as a supply line.
-- **More than two LEDs or more brightness per channel.** Only then a small logic-level MOSFET as a
-  low-side switch pays off, with 100 kΩ from gate to ground.
-- **Inputs added later.** Buttons or sensors need external resistors on an RP2350 of revision A2,
-  whose internal pull-down is affected by erratum E9.
+A Raspberry Pi Pico 2 W, in the variant with soldered headers, on socket strips.
 
-## Power supply
+| Property | Value |
+| --- | --- |
+| Chip | RP2350A, as on the Pico 2 the owner has, which stays the test device |
+| Size | 51 mm × 21 mm, 1 mm thick, Micro-USB at one end |
+| Hardware PWM | 16 channels, 6000 counts at 25 kHz. The pins of the firmware, GPIO 7 to 22, are all free; the radio uses GPIO 23, 24, 25 and 29 |
+| Radio | 2.4 GHz wireless LAN and Bluetooth 5.2. The antenna is at the end opposite the USB socket and needs a free zone of 14 mm × 9 mm; nothing of metal may enclose it, so no aluminium tape near that end |
+| Supply | 5 V through the USB socket, or through the VSYS pin behind a Schottky diode, which is the way its datasheet names for a second source |
+| Start | It runs as soon as it has power |
 
-The Pico 2 is powered through its USB socket: from there a diode feeds VSYS (about 1.8 V to 5.5 V
-permitted) and the regulator makes 3.3 V. The demand is estimated at well below 100 mA, less than
-0.5 W; the figure in the Pico 2 datasheet has not been looked up. Any USB power supply is enough.
+- **Why the radio.** The first controller is reached by the power lead. The others are not, and
+  nobody wants to open a module to update one. The radio is the update path for all of them, and it
+  can carry settings such as the brightness of a channel. It is switched on in a service window
+  only.
+- **Not proven yet.** A Rust driver for the radio chip exists, and so does a bootloader library,
+  whose description names the RP2040 only. An update over the radio on an RP2350 is the first
+  milestone on the bench. The fallback is the USB socket of each controller.
+- **Other boards were examined.** A board with the RP2350B has 24 channels, but it is 76 mm long,
+  costs three times as much, and no zone needs more than 16 channels. No other controller family
+  dims finer at 25 kHz. The comparison is in [lighting-practice.md](lighting-practice.md).
 
-| Variant | Build | Advantages | Drawbacks |
+### The board of a zone
+
+A perfboard with socket strips for the controller, two buffers in sockets, a protective resistor per
+channel and the outlets. It is the same in every zone. A layout has not been drawn; whether the
+board with the USB plug fits the chamber under the terrace, about 80 mm × 80 mm and 38 mm to 48 mm
+high by the drawings, is measured on the model before the board is built.
+
+## Driver stage
+
+Every channel runs through a logic buffer on 5 V: pin of the controller → input of a 74HCT541 →
+output → protective resistor on the board → wire → resistor of the LED on the distribution strip of
+its room → LED → ground.
+
+```mermaid
+flowchart LR
+    pin["PWM pin, 3.3 V"] --> buffer["74HCT541 on 5 V"]
+    pulldown["100 kΩ to ground"] --- buffer
+    buffer --> protect["330 Ω on the board"]
+    protect --> wire["Channel wire"]
+    wire --> r1["Resistor"] --> led1["LED"] --> ground["Ground"]
+    wire --> r2["Resistor"] --> led2["LED"] --> ground
+```
+
+| Part | Role |
+| --- | --- |
+| Two 74HCT541 per controller, in sockets | Eight buffers each. They run on the 5 V of the supply and read 2.0 V as high, so a 3.3 V pin drives them directly. Both enable inputs are tied to ground |
+| A 100 kΩ resistor network per buffer | Holds the inputs low while the pins of the controller are still unpowered or high impedance, so the LEDs stay dark until the firmware runs |
+| A 100 nF capacitor per buffer | Decoupling |
+| A 330 Ω resistor per output | Limits a short of a channel wire to 15 mA |
+
+Why a buffer and not the pin itself:
+
+- **Warm white needs it.** A warm white LED of the chosen kind needs typically 2.7 V and at most
+  3.3 V at 5 mA, and it is about five times as bright as an orange one at the same current. A
+  candle therefore runs at a fraction of a milliampere. From a 3.3 V pin that current comes out of
+  a headroom of about half a volt, where the spread between LEDs decides the brightness. From 5 V
+  the headroom is more than 2 V and the resistor decides.
+- **One wire per channel.** The resistors of the LEDs sit in the rooms, so a channel with five
+  candles crosses a joint on one contact.
+- **Nothing but limited lines beyond the board.** A chafed wire in a room carries at most 15 mA.
+- **The pins are out of reach.** A fault on a wire meets a socketed part that costs less than a
+  euro.
+
+The current of the LEDs comes from the 5 V of the supply. The supply of the bill of materials is
+specified with at most 100 mV of ripple, which is up to 5 % of the headroom. That this stays
+invisible is an assumption for the bench test. The pins of the RP2350 may source 100 mA in total and
+reset to a drive strength of 4 mA; neither limit matters, because they only drive buffer inputs.
+
+A Darlington array as a low-side switch was examined and rejected: it switches off about 110 ns
+later than it switches on, against shortest pulses of 240 ns, and drops about 0.9 V.
+
+### Resistors of the LEDs
+
+The resistor of an LED is `R = (Vm − Vf) / I`, with `Vm = Vout − 330 Ω × Ichannel` at the room. The
+starting values assume 5.0 V at the output of the buffer and the forward voltages of the datasheet
+at 5 mA. Neither is exact: the output lies a few tenths of a volt lower under load, the supply may
+deliver 4.75 V to 5.25 V, and no source states the forward voltages at the currents planned here.
+
+| LED | Forward voltage, typical and maximum at 5 mA | Target | Starting resistor |
 | --- | --- | --- | --- |
-| A: magnetic coupling (chosen) | Extension from the Pico to the edge of the rock, magnetic adapter in its socket, magnetic cable to the power supply | Releases by itself when pulled, separates with one hand, spares the castle and the socket | Quality varies, many adapters carry no data, exposed contacts on the cable end, some have an LED in the plug |
-| B: USB-C panel socket | Socket flush in the rock, adapter to Micro-USB inside, a normal USB-C cable outside | Nothing hangs out, standardised, data possible | Does not release when pulled. Without 5.1 kΩ resistors on CC1 and CC2, USB-C power supplies deliver nothing over a C-to-C cable |
-| C: barrel plug on VSYS | Coupling 5.5/2.1 mm, inside through a Schottky diode to pin 39 | Sturdy, cheap, the USB socket stays free | No data, soldering |
+| Amber, flame of a hearth | 1.7 V, 2.3 V | 3 mA | 680 Ω |
+| Amber, torch | 1.7 V, 2.3 V | 2 mA | 1 kΩ |
+| Red, embers | 1.7 V, 2.3 V | 1.5 mA | 1.5 kΩ |
+| Warm white, candle | 2.7 V, 3.3 V | 0.3 mA | 6.8 kΩ |
+| Warm white, room light | 2.7 V, 3.3 V | 0.5 mA | 4.7 kΩ |
 
-- **Lead.** A Micro-USB extension of 15 cm to 30 cm, plug to socket, fully wired with data lines,
-  thin and flexible, with an angled plug at the Pico. Pull the magnetic adapter out and a normal
-  Micro-USB data cable fits the same socket for flashing.
-- **Strain relief.** Tie the lead to a Technic brick inside the rock. The socket of the Pico must
-  never take a pull.
-- **Coupling without an LED.** A lit status indicator at the foot of the rock spoils the picture;
-  cover it otherwise.
-- **Switching.** An inline switch, a timer or a smart plug at the power supply. The firmware never
-  writes to flash and keeps no state, so cutting the power is safe.
-- **No power bank.** Many switch off after a short time at such a small current.
-- **No double feed.** Feeding 5 V into the VBUS pin as well would feed back into the PC while
-  flashing.
+- The resistor sets the brightness of each LED once, the firmware sets the brightness of the
+  channel. A dim light gets a large resistor and a moderate duty cycle, not a small resistor and a
+  tiny one: the pulses stay long, and warm white looks warmer at a low current.
+- A light that shares its channel gets a little less than one alone, because the protective
+  resistor is shared. The bench sets the final values.
+- The first bench test measures the forward voltage of every delivered LED at 0.3 mA, 1 mA and
+  3 mA and confirms that its lead carries no resistor.
+
+### Limits
+
+| Limit | Value | Design |
+| --- | --- | --- |
+| Rated output current of a buffer | 6 mA | The plan peaks at about 3.5 mA, on the tiled stove with two LEDs |
+| Absolute current through the supply pin of a buffer | 70 mA | Eight channels of 6 mA are 48 mA |
+| Current of all LEDs fully on | About 60 mA for the castle | The average is far lower; the supply delivers 1.5 A |
+| Short of one channel wire to ground | 15 mA through the protective resistor | Harmless |
+| Short of a whole trunk | 15 mA per channel | With more than four channels of one buffer shorted at once, the absolute limit of its supply pin is exceeded. The buffer is socketed |
+| Short between two channel wires | Up to 7.6 mA through both outputs; each lights the LEDs of the other | Above the rated 6 mA, far below the absolute 35 mA; easy to see |
+| Short of a 5 V branch between two controllers | The fuse of the branch | See below |
+
+## Power
+
+One lead enters the castle, at the first controller. Everything else is fed from there.
+
+```mermaid
+flowchart LR
+    supply["5 V supply"] --> lead["Magnetic lead"]
+    lead --> socket["Flush socket"]
+    socket --> k1["Controller 1<br>USB socket"]
+    k1 --> vbus["Its 5 V pin"]
+    vbus --> b1["Buffers of zone 1"]
+    vbus --> f2["Fuse"] --> j2["Two contacts"] --> d2["Schottky diode"] --> k2["Controller 2"]
+    vbus --> f3["Fuse"] --> j3["Two contacts"] --> d3["Schottky diode"] --> k3["Controller 3"]
+```
+
+| Link | Part | Notes |
+| --- | --- | --- |
+| Wall | A plain 5 V supply with a USB-A socket | Its datasheet allows a load of 0 A, so it does not switch off at a small one. A USB-A port delivers 5 V without any negotiation |
+| Switch | A timer, a smart plug or a USB cable with a switch | The firmware keeps no state that a power cut could damage. A cable with a switch carries no data and comes out for an update over USB |
+| Lead | A magnetic USB cable, USB-A to a magnetic face, 1.1 m | Specified by its maker for data up to 480 Mbit/s and 2.4 A. No independent test was found |
+| At the model | The magnetic Micro-USB tip of that cable, in a flush panel socket with 25 cm of cable | The plug of that cable goes straight into the first controller. The socket needs an opening of about 8 mm × 3 mm and has two screw holes 30 mm apart |
+| To a further controller | A resettable fuse on the board of the first controller, then 5 V and ground | One branch per controller. At the far end the 5 V feeds the buffers and, through a Schottky diode, the VSYS pin of the controller |
+
+- **One cable leaves the castle.** The branches to the other controllers stay inside the model.
+  When the castle moves onto the display base, the flush socket moves to the edge of the base and a
+  longer cable of the same kind reaches the first controller.
+- **The fuse limits a fault, it does not switch it off.** The chosen part holds 0.10 A and trips at
+  0.20 A within seconds; while tripped it lets about 76 mA through. Whether a controller with its
+  radio on stays below the hold current is measured before the value is fixed; the next size holds
+  0.20 A.
+- **The diode guards against two things:** a branch that is plugged in reversed, and a computer on
+  the USB socket of that controller feeding the whole castle backwards.
+- **Plugging a zone onto a live branch** charges its capacitors at once and may restart the other
+  controllers for a moment. Switch the supply off first; nothing is damaged otherwise.
+- **The magnetic coupling is an add-on to a normal socket.** If it disappoints, the tip is pulled
+  out and an ordinary Micro-USB cable goes into the same socket. Its known weaknesses are open
+  contacts that are live on the cable end and exposed to touch on the model, and a magnet that
+  collects metal debris. Switch the supply off before detaching the lead.
+- **To try on the samples:** whether the plug has an LED, whether data passes the whole chain and
+  with the plug turned, whether the magnet lets go before the tip leaves its socket, and how far
+  the tip stands proud.
+- **No power bank.** Their makers document that the output switches off at small loads unless a
+  special mode is entered, and that mode ends after two hours.
+
+A Pico 2 draws typically 12.5 mA from 5 V. What a Pico 2 W draws with its radio on was not
+researched; it is measured on the bench.
+
+## Connectors
+
+Inside a zone a joint carries one contact per channel and one for ground. Between two zones it
+carries two contacts, 5 V and ground.
+
+| Place | Connector | Notes |
+| --- | --- | --- |
+| Outlet of a board | The socket half of a 1.25 mm wire-to-wire pair, its leads soldered to the board | Plugging happens between two cables in free space |
+| A unit that an instruction lifts off, such as the keep or the wooden yard | The same pair, with 3 cm to 5 cm of slack | Pulled apart by hand before the unit is lifted |
+| A floor that lifts off often | A magnetic connector with spring contacts, two to four contacts at 2.54 mm pitch, in a seat cut into a brick or in a printed brick | Lets go by itself. The magnet supplies the contact force, which matters on a floor that lies loose: four plain spring pins of 1.5 N would lift a floor lighter than about 610 g |
+| A 5 V branch between two zones | A pair with two contacts | The diode at the far end makes a reversed plug harmless |
+| Distribution strip in a room | A piece of perfboard | The trunk ends here; the resistors of the LEDs and their wires start here |
+
+- **Pin 1 is ground on every connector.** Pins 2 and up carry the channels in ascending order.
+- **Every half towards the controller is a socket, every half towards the LEDs a plug.**
+- **Both halves carry the same label.** A swap lights the wrong lamps and harms nothing.
+- The 1.25 mm pairs on sale are copies of a branded family without a datasheet, and one report
+  calls copies with three and four contacts unreliable. They are tried thirty times before they are
+  built in. The fallback is the branded original at about ten times the price.
+- Contact plates of the makers of light kits carry two contacts. They fit a 5 V branch or a single
+  channel, are about one plate high and clamp on studs. The current ones of Light My Bricks end in a
+  plug of their own that cannot be joined to other wiring without an adapter; older ones and those
+  of other makers have ordinary wires. None states a rating; a pair is worth a test on a loose
+  floor at 0.3 mA. Details are in [lighting-practice.md](lighting-practice.md).
+
+### Outlets of the first controller
+
+| Outlet | Stage | To | Contacts | Channels |
+| --- | --- | --- | --- | --- |
+| Wired directly | 1 | Kitchen and courtyard, the same unit as the controller | | 0, 1, 8 |
+| J1 | 1 | Hall, through the joint under its floor | 4 | 2, 3, 4 |
+| | 1 | Bedroom, through the joint under its floor | 2 | 4 |
+| J2 | 1 | Bergfried, at its foot | 5 | 5, 6, 7, 9 |
+| J3 | 2 | Vorburg | 5 | 10, 11, 12, 13 |
+| P2, P3 | 3, 6 | The 5 V branches to controllers 2 and 3 | 2 each | |
+
+The outlets of the other controllers are fixed when their sets are built. An outlet is soldered to
+its board when its stage comes.
+
+## Working on the bricks
+
+The owner allows bricks to be drilled, cut and glued where it serves the lighting, on one
+condition: matching replacement bricks are ordered first. This replaces the earlier rule that
+nothing may leave a trace.
+
+### Replacement bricks first
+
+- BlueBrixx sells no single bricks. Its spare-part service replaces missing and defective parts
+  against the invoice and orders each from the maker, with three to eight weeks of delivery; a brick
+  that was drilled on purpose does not qualify.
+- The parts list at the end of an instruction shows a drawing and a quantity for each part, no part
+  number and no colour name.
+- The practical source is the Part Packs of BlueBrixx: bags of 25 to 200 pieces of one shape and
+  colour for 4.95 € to 6.95 €. All wall and floor shapes exist in both greys, tan, dark tan,
+  reddish brown and black, and the 1×1 slope of the fires in transparent red and two transparent
+  oranges.
+- Who makes the Part Packs is not stated, and whether their colour and clutch match the sets is
+  unverified. Two or three bags are bought and compared with the set in daylight before the rest.
+  If the greys differ visibly, they serve for hidden bricks and for practice.
+- The only guaranteed match is a second copy of a set. The printed tiles of the mantel in the hall
+  have no other source and stay untouched.
+
+### What is done, in the order of its benefit
+
+| Measure | How | Risk |
+| --- | --- | --- |
+| A seat for each LED | A hole of 1.2 mm to 1.5 mm through the hidden part that carries a fire or a candle, so the LED sits under or behind the transparent part | Small. The carriers are cheap, hidden bricks |
+| Passages for wires | A hole of 1 mm through a hidden brick: through the centre of a stud from inside, where the dimple of the mould centres the drill; through a side wall midway between two studs; through a plate between its tubes. Never through a tube, a pin or a wall at a stud, which are the surfaces that clamp | A drill that wanders or breaks; a misplaced hole |
+| A seat for a floor connector | A pocket cut into a brick at the top of a wall and into the part above it, so a bought magnetic pair sits flush | Medium; a printed brick with that pocket is tried first |
+| Glue | Only to lock an LED in its seat. A glue that washes off where a weak hold is enough; clear epoxy for an LED potted into a spare brick | Solvent cement marks the plastic. Cyanoacrylate fogs transparent parts and cannot be removed without attacking the plastic, so it stays away from the fires and the windows |
+| Room for a board | Leaving out hidden bricks, not cutting the base | The base carries the rock panels and the foundation of the keep; which bricks are free shows on the model |
+
+- **Tools.** A pin vice with sharp steel drills of 0.6 mm to 1.5 mm, a needle for the centre mark,
+  the brick clamped or pressed onto a plate. A rotary tool melts the plastic at its usual speeds.
+- **Every operation is tried on a spare first,** and the spare is pressed back between two
+  originals to see whether it still clamps.
+- Documented failures of others are wandering and broken drills, melting at high speed and holes in
+  the wrong place. Whitening and cracks around a hole were not described anywhere.
 
 ## Installation
 
-The rock base of the base castle is hollow and reachable, so the control board goes there. Nothing
-is drilled.
+### Wires
 
-### Control board
+| Wire | Outer diameter | Where |
+| --- | --- | --- |
+| Enamelled copper wire of the pre-wired LEDs, 0.15 mm | 0.16 mm | From the LED to the nearest strip or passage. The only wire that may pass under the wall of a brick without a hole |
+| Stranded micro cable, 0.014 mm² | About 0.28 mm | The runs inside a zone, through drilled passages and between the studs |
+| Leads of the connectors, 28 gauge, and stranded trunk wire | Up to about 1 mm | Trunks and the 5 V branches, in shafts, bays and the base |
 
-- A perfboard of about 50 mm × 70 mm, roughly 6 × 9 studs, with socket strips for the Pico 2
-  (51 mm × 21 mm), the series resistors and one pin header per module as outlet.
-- The Pico is only plugged in. It comes out for flashing without loosening a wire.
-- A removable piece of rock serves as the maintenance hatch.
+- Enamelled wire copes with bending but not with a pull. It is fixed near the LED and near the
+  strip, and it never bridges a joint that moves.
+- A wire lies between the studs or in a passage, never across a stud. A brick is never forced onto
+  a wire.
+- The ground of a room runs through its trunk, not through enamelled wire.
 
-### Cabling
+### Routes
 
-- A trunk cable of thin stranded wire runs from the board to every module: one core per channel
-  plus ground.
-- In the module it ends at a small solder or pin strip. The enamelled wires of the LEDs start
-  there.
-- Enamelled wire is for the last centimetres only; it breaks when moved repeatedly.
-
-### Separation points
-
-- The base castle has three removable floors according to a review. Every floor with LEDs gets a
-  small connector in a wall niche or in the chimney shaft, with 3 cm to 5 cm of slack.
-- Every expansion gets a connector at its joint, so the castle stays separable.
-
-### Routing without drilling
-
-1. Lead enamelled wire between the studs under a brick or a plate, never across a stud. At most one
-   or two wires per joint.
-2. Run vertically in chimneys, tower shafts and behind columns. Stacked round 1×1 bricks with a
-   hollow stud form a duct.
-3. Pass walls through windows, arrow slits and door arches. Where nothing is open, swap a brick for
-   a Technic brick with a hole; that is reversible.
-4. Fix with removable adhesive putty. No superglue, it leaves a white haze.
-
-These are common techniques of lighting brick models and have not been tried on this set. Check on
-spare bricks first whether the bricks still clamp cleanly with a wire in the joint.
+1. Vertically in the well shaft, the tower shafts, the pillar of the Saalbau and the joist bays
+   under the floors, see [model.md](model.md).
+2. Through walls by windows, arrow slits and door arches, and otherwise through a drilled passage
+   in a hidden brick.
+3. The sets that are still to be built get their wires while they are built. A documented build
+   that did so hid its wires better than one wired afterwards.
 
 ### Light placement
 
 - An LED is never visible directly. It lights a transparent part or a wall.
-- The fire stays the brightest and most restless source in a room; ambient light stays well below.
-- Light bricks are slightly translucent. Keep LEDs away from the back of an outer wall, or put a
-  black plate or aluminium tape in between. This is an experience value to be checked on the model.
+- The fire stays the brightest and most restless source in a room.
+- Light bricks let light through. An LED stays away from the back of an outer wall, or a black
+  plate, aluminium tape or a printed insert goes in between. This is to be checked on the model.
 
 ### Before installing
 
-- Test every LED on the board and mark its polarity.
-- Label every wire with its channel number.
+- Test every LED with its resistor on the bench and mark its polarity.
+- Label every wire and both halves of every connector.
+- Test every finished unit on its own before it goes onto the castle.
 - Photograph the installation and keep the channel plan in this repository up to date.
-
-## Bill of materials
-
-Quantities follow the channel plan with some reserve. Prices and concrete articles have not been
-researched.
-
-| Part | Quantity | Note |
-| --- | --- | --- |
-| Raspberry Pi Pico 2 with pin headers | 1 | |
-| Socket strip 1×20, 2.54 mm pitch | 2 | Socket for the Pico |
-| Perfboard, about 50 mm × 70 mm | 1 | |
-| Resistors 330 Ω, 470 Ω, 680 Ω, 1 kΩ, 1.5 kΩ | 20 each | One per LED, the rest for trimming |
-| SMD LED 0402 amber or orange, pre-wired | 15 | Without built-in resistor, 12 needed |
-| SMD LED 0402 red, pre-wired | 8 | 5 needed |
-| SMD LED 0402 warm white, pre-wired | 15 | 2000 K to 2700 K if available, 11 needed |
-| Stranded wire 0.14 mm² in several colours | 10 m | Trunk cables and ground |
-| Pin and socket strips, 2.54 mm pitch or smaller | as needed | Connectors at the board, floors and modules |
-| Micro-USB extension, angled plug to socket, 15 cm to 30 cm | 1 | With data lines |
-| Magnetic Micro-USB adapter with cable | 1 | Without an LED in the plug |
-| USB power supply 5 V, at least 0.5 A | 1 | Branded, with CE mark |
-| Inline switch, timer or smart plug | 1 | Optional |
-| Technic bricks with a hole in the wall colour | as needed | Wall feed-throughs |
-| Removable adhesive putty, black or aluminium tape, small cable ties | | Fixing, shielding, strain relief |

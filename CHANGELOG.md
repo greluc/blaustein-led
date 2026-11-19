@@ -9,11 +9,29 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- Documentation of the installation: `docs/lighting-plan.md` with the analysis of 2.0.0, the
-  lighting concept, a draft channel plan for the full castle and every source that still has to
-  be verified; `docs/hardware.md` with the electrical design, the power supply with a magnetic
-  coupling, the installation rules and a bill of materials; `docs/research-brief.md` with the
-  research a session with internet access still has to do.
+- Documentation of the installation in the castle, researched from the building instructions of
+  every set, from datasheets and from shop pages:
+  - `docs/lighting-plan.md`: the owner's decisions, the analysis of 2.0.0, a review of every
+    decision of the plan, the lighting concept, a channel plan per controller, and the stages in
+    which the lighting grows with the model: first the base castle with the Bergfried, then each
+    expansion as it is built, finally the complete castle on the display base.
+  - `docs/hardware.md`: one Raspberry Pi Pico 2 W per zone of neighbouring sets, three for the
+    castle; a driver stage of 74HCT541 buffers on 5 V with one wire per channel and the resistor
+    of each LED in its room; a single power lead with fused 5 V branches between the controllers;
+    keyed connectors; the rules for drilling, cutting and gluing bricks once replacement bricks are
+    at hand; and the installation rules.
+  - `docs/bill-of-materials.md`: every part with retailer, article and price, the replacement
+    bricks, and the orders by stage.
+  - `docs/model.md`: the sets of the series with their item numbers, light points, joints and
+    cavities.
+  - `docs/lighting-practice.md`: how light kits and builders light brick models, the components
+    of one kit maker examined part by part, the comparison of direct drive, a 5 V rail and
+    addressable LEDs, and the comparison of six arrangements of controllers.
+  - `docs/printed-parts.md`: whether parts that clamp on the bricks can be printed, which printer
+    suits which part, and a test plan.
+  - `docs/sources.md`: every source that was opened with what it confirmed or corrected, what
+    stays unverified and what could not be read.
+  - `docs/research-brief.md`: the brief for that research and what became of it.
 - Presets for the light roles of a castle model: `FireConfig::HEARTH` (fireplace, cooking fire),
   `FireConfig::TORCH`, `FireConfig::CANDLE` (candle, oil lamp), `FireConfig::EMBER` (embers,
   forge) and `FireConfig::AMBIENT` (room light). They are starting points tuned in a host
@@ -36,9 +54,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- The README recommends about 1 kΩ per amber, orange or red LED and about 330 Ω per warm white
-  LED instead of 330 Ω to 1 kΩ, and a budget of 4 mA per pin and 40 mA in total: 330 Ω on sixteen
-  orange LEDs would peak at about 63 mA.
+- The README recommends about 1 kΩ per amber, orange or red LED on a test bench instead of 330 Ω
+  to 1 kΩ, names the limits of the RP2350 (a drive strength of 4 mA per pin at reset, 100 mA over
+  all pins) and says that a warm white LED has almost no headroom on a 3.3 V pin, which is why the
+  installation drives its LEDs through buffers on 5 V.
+- `.gitignore` excludes `/reference/`, the local folder for downloaded building instructions and
+  datasheets, which are under third-party copyright.
 - The look of the flame changed. Three layers of smoothly interpolated value noise (a slow swell,
   a faster sway and a fast flicker), each gliding to a new random level after a random time, and
   occasional gusts that deepen the flicker replace the triangular breathing envelope, the jitter,
