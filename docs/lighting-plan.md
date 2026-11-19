@@ -101,6 +101,51 @@ instructions before anything is wired.
   28) can run as PWM through PIO, for which Embassy ships a program. Effort and resolution have
   not been examined.
 
+## Firmware
+
+Nine changes answer the analysis. All of them are implemented; none has run on a board yet.
+
+| No. | Change | Result |
+| --- | --- | --- |
+| 1 | Decouple the envelope | Three layers of smoothly interpolated value noise (swell, sway, flicker) and occasional gusts replace the triangular envelope, the jitter, the flares and the smoothing. Over 50 simulated minutes two hearth channels correlate by at most 0.04, and no role has a dominant period |
+| 2 | Light roles | Presets for hearth, torch, candle, ember and ambient light, and a channel table in `src/config.rs` with one line per LED: a role and a brightness trim |
+| 3 | 16-bit brightness | The simulation returns a 16-bit intensity and the gamma curve works on it, so dim roles fade without steps. `peak` bounds the output of a role by construction |
+| 4 | Coupled channels | A follower drives the ember LED of a fireplace from its flame, heavily smoothed |
+| 5 | Installation aids | The `identify` feature builds a firmware in which every LED blinks its channel number. After power-on the channels ignite 400 ms apart and fade in over 2 s |
+| 6 | PWM phases | The slices start in one register write with their counters spread evenly over the period |
+| 7 | Random start | 32 bits of the ring oscillator are mixed into the seeds at boot. The hardware random generator is not used: its driver needs an interrupt binding and can wait without bound |
+| 8 | Update through USB | The `usb-update` feature adds a USB device with the reset interface of picotool, so picotool reboots the buried Pico into its bootloader. The default build contains no USB stack |
+| 9 | Documentation | This plan, [hardware.md](hardware.md) and the README |
+
+Release image with sixteen channels, in bytes:
+
+| Build | `.text` | `.rodata` | `.bss` |
+| --- | --- | --- | --- |
+| Version 2.0.0 | 4616 | 508 | 880 |
+| Default | 6256 | 380 | 1120 |
+| `identify` | 4476 | 176 | 544 |
+| `usb-update` | 15564 | 564 | 2512 |
+
+What only a board can show:
+
+- The look of every role and of the ignition. The presets were tuned by statistics in a host
+  simulation and are starting points.
+- Whether the ring oscillator gives different bits at every power-on.
+- On an oscilloscope, that the phases are staggered and stay so.
+- The total current of the identify build, in which all LEDs are fully on at once at the start of
+  every cycle; that is at the 40 mA design limit.
+- For `usb-update`: that Windows, Linux and macOS enumerate the device, that Windows binds WinUSB
+  to a device with a single interface, that picotool finds, reboots and flashes it, and that the
+  reboot works with the watchdog running.
+- For `usb-update` on a plain charger: some chargers short the data lines or hold them on a
+  voltage divider. The USB driver is not expected to starve the light task then, but until that
+  is tried on the charger that will be used, the default build is the safe one to install.
+
+The protocol of the reset interface was taken from three crates on crates.io, not from the Pico
+SDK or the source of picotool, which were out of reach. The device reports Raspberry Pi's vendor
+ID `2e8a` with the product ID `0009`, because picotool looks for them; that suits a private
+installation and is not a licence to distribute devices under that ID.
+
 ## Not worth doing
 
 - **Shrinking flash and RAM further.** 0.13 % of the flash was in use.
@@ -153,7 +198,7 @@ snippet, on memory or on a calculation, and is confirmed against the source befo
 - **Effect.** The simulation measures lockstep, not beauty. The look of the flame can only be
   judged on the model.
 - **Hardware.** Nothing of the firmware described here has been flashed to a board by the session
-  that wrote it.
+  that wrote it; [Firmware](#firmware) lists what only a board can show.
 
 ## Open research
 

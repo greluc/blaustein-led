@@ -94,7 +94,9 @@ permitted) and the regulator makes 3.3 V. The demand is estimated at well below 
 
 - **Lead.** A Micro-USB extension of 15 cm to 30 cm, plug to socket, fully wired with data lines,
   thin and flexible, with an angled plug at the Pico. Pull the magnetic adapter out and a normal
-  Micro-USB data cable fits the same socket for flashing.
+  Micro-USB data cable fits the same socket for flashing. The firmware feature `usb-update` uses
+  these data lines: picotool on a computer at the other end reboots the Pico into its bootloader
+  and flashes it without the BOOTSEL button.
 - **Strain relief.** Tie the lead to a Technic brick inside the rock. The socket of the Pico must
   never take a pull.
 - **Coupling without an LED.** A lit status indicator at the foot of the rock spoils the picture;

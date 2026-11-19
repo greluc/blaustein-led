@@ -154,8 +154,11 @@ where you disagree with the earlier session and why.
 
 ### 8. Verify the firmware where you can
 
-- Check the constants of the USB update feature against the header of the Pico SDK that defines
-  the reset interface and against the source of picotool, if that feature has landed.
+- Check the `usb-update` feature against the header of the Pico SDK that defines the reset
+  interface and against the source of picotool: the interface class, subclass and protocol, the
+  request number and the layout of `wValue` in `fire-effect/src/picotool_reset.rs`; the vendor and
+  product ID and the Microsoft OS 2.0 descriptors of a device with a single interface in
+  `src/usb_update.rs`; and the picotool commands in the README.
 - If the owner connects a Pico 2 and agrees: build and flash, run the identify build, cut and
   restore the power repeatedly, try the USB update, and measure the current. Report exactly what
   you saw.

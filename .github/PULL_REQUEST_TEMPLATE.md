@@ -40,7 +40,7 @@ one) and the effect checked. If something could not be tested, say so explicitly
 - [ ] The issue is linked (`Closes #...`).
 - [ ] Every commit carries a `Signed-off-by:` trailer (`git commit -s`, see [CONTRIBUTING.md](../CONTRIBUTING.md#developer-certificate-of-origin-dco)).
 - [ ] `cargo +nightly fmt --all --check` passes.
-- [ ] `cargo clippy --release`, `cargo clippy --release --features identify`, `cargo clippy --profile release-debug --features debug` and `cargo clippy-host` pass.
+- [ ] `cargo clippy --release`, `cargo clippy --release --features identify`, `cargo clippy --release --features usb-update`, `cargo clippy --release --features identify,usb-update`, `cargo clippy --profile release-debug --features debug`, `cargo clippy --profile release-debug --features debug,usb-update` and `cargo clippy-host` pass.
 - [ ] `cargo test-host` passes; new behaviour and fixes in `fire-effect` have tests.
 - [ ] `cargo deny check` passes after a dependency change.
 - [ ] Comments are doc comments or short technical comments of the current state, with no history; lint suppressions use `#[expect(lint, reason = "...")]`.

@@ -24,6 +24,9 @@
 //! the staggered [`IgnitionConfig`] after power-on and the table of [`Channel`]s, each driven by
 //! a [`Light`] and trimmed to its LED. [`Lights`] runs every channel of it; [`Identify`] blinks
 //! each channel's number instead, to match wires to channels.
+//!
+//! [`picotool_reset`] decodes the requests of the reset interface through which picotool reboots
+//! the running firmware into the USB bootloader, for the `usb-update` feature of the firmware.
 
 #![cfg_attr(not(test), no_std)]
 
@@ -38,6 +41,7 @@ mod installation;
 mod intensity;
 mod lighting;
 mod noise;
+pub mod picotool_reset;
 pub mod pwm;
 mod rng;
 mod roles;

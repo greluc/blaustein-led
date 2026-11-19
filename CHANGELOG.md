@@ -30,11 +30,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   apart, a 2 s pause), all channels in step, to match wires to channels during the installation.
   Its `picotool info` description names it. CI lints and builds it, and the release image sizes of
   both builds go into the job summary.
+- `usb-update` feature: a USB device with the reset interface of picotool (one vendor-specific
+  interface without endpoints) runs next to the lights, so picotool on the USB lead reboots the
+  running firmware into the USB bootloader and flashes it without the BOOTSEL button. Only the
+  reboot into the bootloader is offered; it is acknowledged before the chip resets, and an
+  activity LED a host names is ignored. The device reports `2e8a:0009` and Microsoft OS 2.0
+  descriptors, so Windows binds WinUSB by itself. Without a host the lights run as in the default
+  build, and the build without the feature is unchanged byte for byte. It adds embassy-usb 0.6.0
+  (about 9.3 KB of flash and 1.4 KB of RAM) and combines with `identify` and `debug`; CI lints
+  and builds `usb-update`, `identify,usb-update` and `debug,usb-update`. Not yet tried on
+  hardware.
 - In `fire-effect`: `LightingConfig` and the `Lighting` trait, `Channel` and `Light`,
   `IgnitionConfig`, the `Lights` bank that runs every channel with its role or follower, the
-  ignition and the trim, `Identify`, and `pwm::phase_offset`. Host tests of the ignition envelope,
-  the identify pattern, the phase offsets, the seed mixing, the trim, the table validation and the
-  bank as a whole: 92 tests in total.
+  ignition and the trim, `Identify`, `pwm::phase_offset`, and `picotool_reset`, which decodes the
+  request of the reset interface. Host tests of the ignition envelope, the identify pattern, the
+  phase offsets, the seed mixing, the trim, the table validation, the bank as a whole and the
+  decoding of the reset request: 97 tests in total.
 - Documentation of the installation: `docs/lighting-plan.md` with the analysis of 2.0.0, the
   lighting concept, a draft channel plan for the full castle and every source that still has to
   be verified; `docs/hardware.md` with the electrical design, the power supply with a magnetic

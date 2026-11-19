@@ -7,7 +7,8 @@
 //! single task. Each channel runs the role or follower its entry in the channel table assigns,
 //! with its own seed and no shared phase, so the flames do not move in lockstep. After power-on
 //! the channels light one after another; the `identify` feature replaces the fire with every
-//! channel blinking its own number.
+//! channel blinking its own number. The `usb-update` feature adds a USB device through which
+//! picotool reboots the running firmware into the USB bootloader.
 //!
 //! The effect uses integer math only (no floating point, no allocation). The configuration in
 //! [`config`] is a compile-time constant, so every derived quantity is folded into the binary by
@@ -19,6 +20,8 @@
 mod config;
 mod effect;
 mod outputs;
+#[cfg(feature = "usb-update")]
+mod usb_update;
 
 use core::ffi::CStr;
 #[cfg(not(feature = "debug"))]
@@ -39,6 +42,9 @@ use panic_probe as _;
 use crate::config::INSTALLATION;
 use crate::outputs::Outputs;
 
+/// Program name for `picotool info`.
+const PROGRAM_NAME: &CStr = c"Blaustein Fire LED";
+
 /// Program description for `picotool info`.
 #[cfg(not(feature = "identify"))]
 const DESCRIPTION: &CStr = c"Smooth, configurable campfire flicker on up to 16 LEDs using PWM";
@@ -55,7 +61,7 @@ const DESCRIPTION: &CStr = c"Identify build: every LED blinks its channel number
 #[unsafe(link_section = ".bi_entries")]
 #[used]
 static PICOTOOL_ENTRIES: [EntryAddr; 4] = [
-    binary_info::rp_program_name!(c"Blaustein Fire LED"),
+    binary_info::rp_program_name!(PROGRAM_NAME),
     binary_info::rp_program_description!(DESCRIPTION),
     binary_info::rp_cargo_version!(),
     binary_info::rp_program_build_attribute!(),
@@ -84,7 +90,7 @@ fn panic(_info: &PanicInfo<'_>) -> ! {
 }
 
 /// Initializes the chip, starts the watchdog, routes the pins of the LED channels to their PWM
-/// slices and spawns the light task.
+/// slices and spawns the light task, and with the `usb-update` feature the USB task after it.
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     let peripherals = embassy_rp::init(Config::default());
@@ -154,6 +160,8 @@ async fn main(spawner: Spawner) {
     let outputs = Outputs::start(routed, config);
     let token = light_task(watchdog, outputs).expect("light_task is spawned once");
     spawner.spawn(token);
+    #[cfg(feature = "usb-update")]
+    spawner.spawn(usb_update::usb_task(peripherals.USB).expect("usb_task is spawned once"));
 }
 
 /// Shows the effect of this build on every LED channel and feeds the watchdog.

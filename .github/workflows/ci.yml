@@ -69,9 +69,18 @@ jobs:
           - name: release, identify
             profile: release
             features: identify
+          - name: release, usb-update
+            profile: release
+            features: usb-update
+          - name: release, identify, usb-update
+            profile: release
+            features: identify,usb-update
           - name: release-debug
             profile: release-debug
             features: debug
+          - name: release-debug, usb-update
+            profile: release-debug
+            features: debug,usb-update
           - name: dev
             profile: dev
             features: ""

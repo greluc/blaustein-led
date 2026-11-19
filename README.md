@@ -44,6 +44,9 @@ The source lives at [github.com/greluc/blaustein-led](https://github.com/greluc/
   the period, so the LEDs do not all switch on at the same instant.
 - **Identify build.** With the `identify` feature every LED blinks its channel number counted
   from 1, so thin wires can be matched to channels during the installation.
+- **USB update.** With the `usb-update` feature a computer with picotool on the USB lead reboots
+  the running firmware into the USB bootloader and flashes it, so a Pico buried in the model needs
+  no BOOTSEL button. Without a computer on the lead nothing changes.
 - **One to sixteen channels, one task.** GPIO 7 to GPIO 22 reach all sixteen PWM outputs of the
   Pico 2, each with its own light. The number of entries in the channel table sets how many are in
   use; only those get a simulation, a PWM slice and RAM. One task and one `Ticker` drive them all,
@@ -211,7 +214,8 @@ Requires [rustup](https://rustup.rs) and, to flash, [picotool](https://github.co
 on your `PATH`. `rust-toolchain.toml` selects the stable toolchain (1.99.1 or newer) and installs
 the `thumbv8m.main-none-eabihf` target on first use.
 
-1. Hold BOOTSEL while plugging in the Pico 2.
+1. Hold BOOTSEL while plugging in the Pico 2. Once a build with the `usb-update` feature runs on
+   it, later updates need no button, see [USB update](#usb-update).
 2. Build and flash in one step: `cargo run --release`.
 
 `cargo run` uses the `picotool` runner from [`.cargo/config.toml`](.cargo/config.toml). To flash by
@@ -223,6 +227,7 @@ run also uploads that image as the `blaustein-led-elf` artifact.
 | --- | --- | --- |
 | `release` | `cargo build --release` | Deployment. No defmt stack; a panic resets the board so the installation recovers unattended. |
 | `release` with `identify` | `cargo build --release --features identify` | Installation aid, see [Identify build](#identify-build). |
+| `release` with `usb-update` | `cargo build --release --features usb-update` | Deployment that picotool can update over the USB lead, see [USB update](#usb-update). Combines with `identify` and with `debug`. |
 | `release-debug` | `cargo build --profile release-debug --features debug` | Optimised build that keeps the symbol table defmt needs to decode RTT output. A panic halts for an attached debugger. |
 | `dev` | `cargo build` | `opt-level = 1`, full debug info. |
 
@@ -240,12 +245,58 @@ The watchdog and the resetting panic handler work as in the default build, and `
 shows the build by its program description. Flash the default build again when the wiring is
 done.
 
+### USB update
+
+`cargo build --release --features usb-update` builds the fire with a small USB device next to it:
+one vendor-specific interface without endpoints, the reset interface that picotool uses to reboot
+a running Pico into its USB bootloader. The lights, the watchdog and the resetting panic handler
+work as in the default build. The device only answers a computer; on a plain USB charger it waits
+for one and the lights run exactly as without the feature. The lead must carry the data lines.
+
+The procedure below follows the documentation of existing implementations of the reset interface
+and has **not been tried on hardware** yet.
+
+1. Flash a build with the feature once the usual way, with the BOOTSEL button.
+2. For every later update, connect a computer with picotool to the lead and run:
+
+   ```bash
+   cargo build --release --features usb-update
+   picotool reboot -f -u
+   picotool load -x -t elf target/thumbv8m.main-none-eabihf/release/blaustein-led
+   ```
+
+   `picotool reboot -f -u` asks the running firmware to reboot into the USB bootloader; the lights
+   go dark. `picotool load -x` then flashes the new image and starts it. On Linux and macOS,
+   `picotool load -f -x -t elf <image>` is documented to do both in one step.
+
+Every build that goes into the buried Pico has to include the feature, the identify build too
+(`cargo build --release --features identify,usb-update`); otherwise the next update needs the
+BOOTSEL button again.
+
+- **Identity.** The device reports Raspberry Pi's vendor ID `2e8a` with product ID `0009`, the
+  IDs picotool looks for, and the product name `Blaustein Fire LED`.
+- **Windows.** Microsoft OS 2.0 descriptors ask Windows 8.1 or later to bind its WinUSB driver to
+  the device, so picotool reaches it without Zadig or an INF file.
+- **Linux.** picotool needs access to the USB device: a udev rule for vendor `2e8a` and product
+  `0009`, or `sudo`.
+- **macOS.** Nothing to set up.
+- **Requests.** The firmware only offers the reboot into the bootloader and rejects every other
+  request. Of the options a computer can send with it, it keeps the two that switch the mass
+  storage or the PICOBOOT interface of the bootloader off, and ignores an activity LED.
+- **Security.** Any USB host on the lead can reboot the Pico into its bootloader and replace the
+  firmware; there is no authentication. A host that only reboots it leaves the lights dark until
+  the firmware is flashed again or the power is cut and restored; the reboot does not touch the
+  flash, so the installed firmware starts again after the power cycle.
+- **Size.** The feature adds embassy-usb. With sixteen LEDs the release image uses about 15.8 KB
+  of flash and 2512 bytes of static RAM, the identify build with the feature 14.0 KB and
+  1936 bytes; the build without the feature is unchanged.
+
 ## Development
 
 | Step | Command |
 | --- | --- |
 | Format | `cargo +nightly fmt --all` |
-| Lint the firmware | `cargo clippy --release`, `cargo clippy --release --features identify` and `cargo clippy --profile release-debug --features debug` |
+| Lint the firmware | `cargo clippy --release`, `cargo clippy --release --features identify`, `cargo clippy --release --features usb-update`, `cargo clippy --release --features identify,usb-update`, `cargo clippy --profile release-debug --features debug` and `cargo clippy --profile release-debug --features debug,usb-update` |
 | Lint the effect crate and its tests | `cargo clippy-host` |
 | Test | `cargo test-host` |
 | Check dependencies | `cargo deny check` |
@@ -259,11 +310,12 @@ the code itself builds on stable. CI runs all of the above on every pull request
 
 | Path | Content |
 | --- | --- |
-| [`fire-effect/`](fire-effect/) | The flicker simulation, the light-role presets, the follower, the channel table and its validation, the ignition, the identify pattern, the seed mixing, the gamma curve, PWM timing and slice phases. No hardware dependencies, so its tests run on the host (`cargo test-host`, an alias for `cargo test --package fire-effect --target host-tuple`). |
-| [`src/main.rs`](src/main.rs) | The firmware: wires the pins to the PWM slices, the watchdog, the panic handler and the task that shows the effect. |
+| [`fire-effect/`](fire-effect/) | The flicker simulation, the light-role presets, the follower, the channel table and its validation, the ignition, the identify pattern, the seed mixing, the gamma curve, PWM timing and slice phases, and the decoding of the picotool reset request. No hardware dependencies, so its tests run on the host (`cargo test-host`, an alias for `cargo test --package fire-effect --target host-tuple`). |
+| [`src/main.rs`](src/main.rs) | The firmware: wires the pins to the PWM slices, the watchdog, the panic handler and the task that shows the effect, and spawns the USB task of the `usb-update` feature. |
 | [`src/config.rs`](src/config.rs) | The installed `INSTALLATION` and `LIGHTING` with the channel table; `CHANNELS` follows from the table. |
 | [`src/outputs.rs`](src/outputs.rs) | The PWM slices: routing, staggered phases and the duty values of every tick. |
 | [`src/effect.rs`](src/effect.rs) | The effect of the build: the fire, seeded from the ring oscillator, or the identify pattern. |
+| [`src/usb_update.rs`](src/usb_update.rs) | The `usb-update` feature: the USB device with the reset interface of picotool and the reboot into the USB bootloader. |
 | [`memory.x`](memory.x), [`build.rs`](build.rs) | Memory layout of the RP2350 and the linker setup. |
 | [`.github/`](.github/) | CI, repository gates, Dependabot, issue and pull request templates, security policy. |
 | [`docs/design/`](docs/design/) | The logo (`logo.svg`) and the GitHub social preview (`social-preview.svg`, rendered to `social-preview.png`). |

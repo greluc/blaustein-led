@@ -61,7 +61,8 @@ how it could work.
 The workspace has two packages:
 
 - `fire-effect` is the flicker simulation, the channel table, the ignition, the identify pattern,
-  the gamma curve and PWM timing. It has no dependencies and no hardware access;
+  the gamma curve, PWM timing and the decoding of the picotool reset request. It has no
+  dependencies and no hardware access;
   `cargo test-host` and `cargo clippy-host` run it on your machine.
 - `blaustein-led` (the root package) is the firmware for the RP2350. It builds for
   `thumbv8m.main-none-eabihf`, the default target in `.cargo/config.toml`.
@@ -166,7 +167,19 @@ cargo clippy --release --features identify
 ```
 
 ```bash
+cargo clippy --release --features usb-update
+```
+
+```bash
+cargo clippy --release --features identify,usb-update
+```
+
+```bash
 cargo clippy --profile release-debug --features debug
+```
+
+```bash
+cargo clippy --profile release-debug --features debug,usb-update
 ```
 
 ```bash
