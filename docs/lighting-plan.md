@@ -21,7 +21,7 @@ Taken by the owner on 2026-11-19:
 | Place for the Pico | The rock base of the base castle; it is hollow and reachable |
 | Kinds of light | Fire and torches, candles, and a faint ambient light in rooms without a fire |
 | Firmware update | Through USB with the Pico in place, as an optional Cargo feature; the Pico is socketed as well |
-| Light points per module | Open. To be researched by a session that can reach the manufacturer's pages, see [Open research](#open-research) |
+| Light points per module | Open. To be researched by a session that can reach the manufacturer's pages, see [research-brief.md](research-brief.md) |
 
 ## Analysis of version 2.0.0
 
@@ -157,19 +157,10 @@ snippet, on memory or on a calculation, and is confirmed against the source befo
 
 ## Open research
 
-For a session that can reach the manufacturer's pages and the datasheets:
-
-- [ ] Open every source under [Sources not read](#sources-not-read) and confirm or correct the
-      statement taken from it, in this document and in [hardware.md](hardware.md).
-- [ ] Confirm or correct every statement under [Statements from memory](#statements-from-memory).
-- [ ] For every set, list the real fireplaces, ovens, forges, torch holders, candles and lanterns
-      per room from the product pages and the building instructions, and correct the channel plan.
-- [ ] Find out whether the forge belongs to the Saalbau or to the Rüstmeister.
-- [ ] Find out which floors and modules separate, and where connectors are needed.
-- [ ] Look up the permitted total GPIO current in the RP2350 datasheet and the power consumption in
-      the Pico 2 datasheet, and correct the current budget in [hardware.md](hardware.md).
-- [ ] Check the switching times of the ULN2803A, or drop the remark about it.
-- [ ] Pick concrete articles for the bill of materials.
+What a session with internet access still has to verify, research and decide is specified in
+[research-brief.md](research-brief.md): every source and statement listed below, the light points
+of every set, best practice for lighting brick models, a modular connector system, a bill of
+materials of parts on sale in Germany, printed parts, and a review of this whole plan.
 
 ## Sources
 
