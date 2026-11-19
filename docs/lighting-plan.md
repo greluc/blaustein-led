@@ -138,9 +138,13 @@ before wires are built in.
 
 ## Unverified
 
-- **Web pages.** The session that wrote this plan could reach package registries only.
-  bluebrixx.com, brickfact.com and the Raspberry Pi datasheets were not reachable; every statement
-  about the set comes from search results.
+The session that wrote this plan could reach package registries only. No web page could be opened:
+bluebrixx.com, brickfact.com and the Raspberry Pi datasheet hosts did not resolve, and after two
+failures no further host was tried. Every statement below therefore rests on a search result
+snippet, on memory or on a calculation, and is confirmed against the source before it is relied on.
+
+- **Set.** Rooms, fireplaces, part counts, dimensions, item numbers and the order of the expansions
+  come from search result snippets, see [Sources not read](#sources-not-read).
 - **Datasheet values.** The permitted total GPIO current of the RP2350 and the power consumption of
   the Pico 2 have not been looked up.
 - **LED data.** The forward voltages are typical values, not manufacturer data.
@@ -155,11 +159,11 @@ before wires are built in.
 
 For a session that can reach the manufacturer's pages and the datasheets:
 
+- [ ] Open every source under [Sources not read](#sources-not-read) and confirm or correct the
+      statement taken from it, in this document and in [hardware.md](hardware.md).
+- [ ] Confirm or correct every statement under [Statements from memory](#statements-from-memory).
 - [ ] For every set, list the real fireplaces, ovens, forges, torch holders, candles and lanterns
       per room from the product pages and the building instructions, and correct the channel plan.
-      Sets: Burg Blaustein 109778, Bergfried 109780, Vorburg 109955, Saalbau 109080, Hurde 109711,
-      Münzturm 109713, Torhaus 109714, Schildwerk 109715, Festungsspitzen 108932, Rüstmeister,
-      Stallungen, Zehntscheune. The item numbers come from a deal page and need confirming.
 - [ ] Find out whether the forge belongs to the Saalbau or to the Rüstmeister.
 - [ ] Find out which floors and modules separate, and where connectors are needed.
 - [ ] Look up the permitted total GPIO current in the RP2350 datasheet and the power consumption in
@@ -169,23 +173,78 @@ For a session that can reach the manufacturer's pages and the datasheets:
 
 ## Sources
 
-Own measurements: release build, host tests and a host simulation, and the source of embassy-rp
-0.10.0 (`pwm.rs`, `watchdog.rs`, `clocks.rs`, `gpio.rs`).
+### Read and measured
 
-The following pages were read as search results only, not opened:
+- This repository at version 2.0.0: a release build with `llvm-size -A`, the 26 host tests and a
+  host simulation of the installed configuration over 200,000 ticks.
+- The source of embassy-rp 0.10.0 from the Cargo registry: `pwm.rs`, `watchdog.rs`, `clocks.rs`,
+  `gpio.rs`, `trng.rs`, `rom_data/rp235x.rs` and `pio_programs/pwm.rs`.
+- The crates.io index, which lists `usbd-picotool-reset`, `rp-usb-reset` and `drooling` as
+  implementations of the picotool reset interface.
 
-- Set and expansions: [BlueBrixx, Burg Blaustein 109778](https://www.bluebrixx.com/de/prod/109778/burg-blaustein/),
-  [Bergfried 109780](https://www.bluebrixx.com/en/prod/109780/blaustein-castle-keep-expansion/),
-  [Saalbau 109080](https://www.bluebrixx.com/en/prod/109080/blaustein-castle-hall-expansion/),
-  [Torhaus 109714](https://www.bluebrixx.com/en/prod/109714/blaustein-castle-gatehouse-expansion/)
-- Dimensions, part counts and order: [Brickfact](https://brickfact.com/de-de/blog/klemmbausteine/burg-blaustein-masse),
-  [Steine-Kanal, overview](https://www.steine-kanal.de/burg-blaustein-von-bluebrixx-die-ultimative-uebersicht/),
-  [Steine-Kanal, order](https://www.steine-kanal.de/bluebrixx-burg-blaustein-reihenfolge-alle-erweiterungen-richtig-aufgebaut/),
-  [mydealz, item numbers](https://www.mydealz.de/deals/verfugbarkeitsdeal-bluebrixx-burg-blaustein-vorburg-2808492)
-- Interiors and floors: [Verklemmt und Zugenoppt, review](https://verklemmtundzugenoppt.de/burg-blaustein/)
-- Pico 2 and RP2350: [Pico 2 datasheet](https://pip-assets.raspberrypi.com/categories/1005-raspberry-pi-pico-2/documents/RP-008299-DS-2-pico-2-datasheet.pdf),
-  [RP2350 datasheet](https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf),
-  [SunFounder on VSYS and 3V3](https://docs.sunfounder.com/projects/newton-lab-kit/en/latest/raspberry_pi_pico2.html),
-  [Hackaday on erratum E9](https://hackaday.com/2024/09/20/raspberry-pi-rp2350-e9-erratum-redefined-as-input-mode-leakage-current)
-- USB-C without CC resistors: [mikrocontroller.net](https://www.mikrocontroller.net/topic/578354)
-- Cables between studs: [Light My Bricks](https://www.lightmybricks.com.au/blogs/learning-centre/expert-tips-managing-lego-lighting-cables-power-docks)
+### Sources not read
+
+None of these pages was opened. The middle column is what this plan takes from the search result
+snippet; the right column is what to check when the page is read.
+
+#### The set
+
+| Source | Statement taken from the snippet | To check |
+| --- | --- | --- |
+| [BlueBrixx, Burg Blaustein 109778](https://www.bluebrixx.com/de/prod/109778/burg-blaustein/) | The base castle has a walled courtyard, a kitchen in the basement, a hall with a fireplace on the first floor and a bedroom in the attic | Rooms and fireplaces, part count, dimensions, which floors come off |
+| [BlueBrixx, Bergfried 109780](https://www.bluebrixx.com/en/prod/109780/blaustein-castle-keep-expansion/) | Tower with a secured entrance, a cellar, a living room with a fireplace and a bed, and a guard platform; the back comes out | Rooms, fireplace, whether the cellar offers room for electronics |
+| [BlueBrixx, Saalbau 109080](https://www.bluebrixx.com/en/prod/109080/blaustein-castle-hall-expansion/) | Vaulted cellar, chambers with a canopy bed and a fireplace, a knights' hall with a shield gallery and a banquet table, a passage to the chapel. A snippet also names a forge with a workbench, a grinding wheel and a glowing fire pit | Rooms and fireplaces; whether the forge is part of this set |
+| [BlueBrixx, Torhaus 109714](https://www.bluebrixx.com/en/prod/109714/blaustein-castle-gatehouse-expansion/) | Guard room with the winches for portcullis and drawbridge, tables and benches, an archive and an inner courtyard | Rooms, torch holders at the gate |
+| [BlueBrixx, Schildwerk 109715](https://www.bluebrixx.com/en/prod/109715/blaustein-castle-ramp-shield-expansion/) | Nothing beyond the name | Interior and light points |
+| [BlueBrixx, Blaustein category](https://www.bluebrixx.com/en/all-themes/middle-ages/blaustein-castle/) | The series also holds an Armourer (Rüstmeister), a Tithe Barn (Zehntscheune), stables and a figure pack | The complete list of sets and their item numbers |
+| BlueBrixx product pages of Vorburg, Hurde, Münzturm, Festungsspitzen, Rüstmeister, Stallungen and Zehntscheune (links not known) | Vorburg: a half-timbered house and wooden palisades. Stallungen: half-timbered, with a paddock. The others: nothing | Interiors and light points of each |
+| [mydealz, deal post](https://www.mydealz.de/deals/verfugbarkeitsdeal-bluebrixx-burg-blaustein-vorburg-2808492) | Item numbers: Bergfried 109780, Vorburg 109955, Saalbau 109080, Hurde 109711, Münzturm 109713, Torhaus 109714, Schildwerk 109715, Festungsspitzen 108932 | The item numbers; other pages name 104185, 108714 and 110451 for a Vorburg |
+| [Brickfact, dimensions](https://brickfact.com/de-de/blog/klemmbausteine/burg-blaustein-masse) | Base castle: 5,562 parts, 40.6 cm × 39.8 cm × 29.5 cm. The full build measures about 100 cm × 72 cm × 73.5 cm. Every expansion requires the ones before it | Dimensions and part counts; another snippet gives 5,747 parts |
+| [Steine-Kanal, overview](https://www.steine-kanal.de/burg-blaustein-von-bluebrixx-die-ultimative-uebersicht/) | The rooms of the base castle as above | Rooms of all sets |
+| [Steine-Kanal, order](https://www.steine-kanal.de/bluebrixx-burg-blaustein-reihenfolge-alle-erweiterungen-richtig-aufgebaut/) | Order: base castle, Bergfried, Vorburg, Saalbau, Hurde, Münzturm, Torhaus, Schildwerk; optional sets furnish the interior | The order; which sets are optional |
+| [CosmoShiva, order](https://cosmoshiva.de/burg-blaustein-alle-erweiterungen-die-richtige-reihenfolge-und-was-noch-geplant-ist/) | A different order for Hurde and Schildwerk | Which order is right |
+| [Klemmbaustein.com, expansions and releases](https://klemmbaustein.com/bluebrixx-burg-blaustein/) | A list of all expansions | Completeness of the list of sets |
+| [Das Klemmbrett, forum thread](https://klemmbrett.info/viewtopic.php?t=724) | Not used; listed as an overview of all expansions | Photos of interiors |
+| [Verklemmt und Zugenoppt, review](https://verklemmtundzugenoppt.de/burg-blaustein/) | The modular build lets the three floors be taken off | Which floors separate and how |
+| [PC Games Hardware, new edition](https://www.pcgameshardware.de/Klemmbausteine-Hardware-280122/News/Neuauflage-von-Burg-Blaustein-bietet-Drucke-und-Figuren-1484950/) | The new edition has a print on the mantelpiece | That the hall has a fireplace |
+
+#### Pico 2 and RP2350
+
+| Source | Statement taken from the snippet | To check |
+| --- | --- | --- |
+| [RP2350 datasheet](https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf) | Nothing; only the title came back | Permitted total GPIO current, pad drive strength at reset, state of the pads at reset, double buffering of the PWM `TOP` and `CC` registers, the wording and the affected revisions of erratum E9 |
+| [Pico 2 datasheet](https://pip-assets.raspberrypi.com/categories/1005-raspberry-pi-pico-2/documents/RP-008299-DS-2-pico-2-datasheet.pdf) | Nothing; only the table of contents came back | VSYS range, the diode from VBUS to VSYS, load limit of the 3V3 pin, power consumption, board dimensions, the BOOTSEL test point |
+| [Hardware design with RP2350](https://datasheets.raspberrypi.com/rp2350/hardware-design-with-rp2350.pdf) | Not used | Recommendations for powering the board |
+| [SunFounder, Pico 2](https://docs.sunfounder.com/projects/newton-lab-kit/en/latest/raspberry_pi_pico2.html) | VSYS takes about 1.8 V to 5.5 V; the 3V3 pin should carry less than 300 mA | Both values against the Pico 2 datasheet |
+| [Hackaday on erratum E9](https://hackaday.com/2024/09/20/raspberry-pi-rp2350-e9-erratum-redefined-as-input-mode-leakage-current) | E9 is a leakage current of input pads of up to 120 µA at 3.3 V; another snippet says revision A4 fixes it | What E9 means for buttons and sensors |
+| ULN2803A datasheet of Texas Instruments (link not known) | Nothing | Turn-on and turn-off times, against PWM pulses of 240 ns |
+| `usb_reset_interface.h` in the repository `raspberrypi/pico-sdk` and the README of `raspberrypi/picotool` (paths not known) | Nothing | The interface class, subclass and protocol, the request numbers and how picotool finds a device, against the `usb-update` feature |
+
+#### Power lead and installation
+
+| Source | Statement taken from the snippet | To check |
+| --- | --- | --- |
+| [mikrocontroller.net, USB-C without power](https://www.mikrocontroller.net/topic/578354) | A USB-C power supply gives no voltage over a C-to-C cable unless the sink has 5.1 kΩ on CC1 and CC2 | The statement, for variant B of the power supply |
+| [Joy-IT K-1483, datasheet](https://joy-it.net/files/files/Produkte/K-1483/Datenblatt%20K-1483.pdf) | A Micro-USB to USB-C adapter specified for data and power up to 3 A | Whether it carries the CC resistors |
+| [techtest.org, magnetic cables](https://techtest.org/die-guenstigen-magnetischen-usb-ladekabel-von-essager-im-test) | Cheap magnetic cables charge some devices slowly or not at all | Whether a magnetic adapter with data lines exists |
+| [Light My Bricks, cable management](https://www.lightmybricks.com.au/blogs/learning-centre/expert-tips-managing-lego-lighting-cables-power-docks) | Thin cables fit between and under bricks, plates and tiles if they lie between the studs; pieces must not be forced together around a cable | Wire gauges that fit; photos of the technique |
+| [Fechtner Modellbau, pre-wired LED](https://en.fechtner-modellbau.de/detail/index/sArticle/14130) | One offer of pre-wired 0402 LEDs names a 1.5 kΩ resistor on the anode for 7.2 V to 16 V; which offer of the result list said so is not known | That LEDs without a resistor are on sale, wire gauge and length |
+
+### Statements from memory
+
+These rest on no source at all and are checked like the snippets above:
+
+- The RP2040 permits 50 mA in total over all GPIOs.
+- The pads of the RP2350 drive 4 mA by default and are high impedance until the firmware
+  configures them.
+- A Raspberry Pi Pico 2 measures 51 mm × 21 mm and has eight ground pins.
+- Typical forward voltages at about 1 mA: 2.0 V for amber and orange, 1.9 V for red, 2.8 V for
+  warm white.
+- WS2812 LEDs have 8 linear bits per colour, and a broken LED cuts off the rest of the chain.
+- Common I2C PWM drivers such as the PCA9685 have 12 bits and about 1.5 kHz.
+- Many power banks switch off at a load of a few tens of milliamperes.
+- Round 1×1 bricks have a hollow stud, light bricks are slightly translucent, and superglue leaves
+  a white haze on plastic.
+
+Calculated, not looked up: 2.2 Ω per metre for copper wire of 0.1 mm, the resistor currents in
+[hardware.md](hardware.md), and 240 ns for 36 counts at 150 MHz.
