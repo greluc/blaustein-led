@@ -62,6 +62,20 @@ The default target is the RP2350, so host tests need the `test-host` / `clippy-h
   never the other way round.
 - **No shortcuts.** No dead code, duplication, magic numbers or swallowed errors. A clean fix that
   is out of scope becomes a follow-up issue, not a comment.
+- **Sources.** Every external source a document relies on is listed in
+  [`docs/sources.md`](docs/sources.md) in the same change: the link, the date it was opened unless
+  it is the date stated at the top of that file, and what it confirmed or corrected. A search
+  result snippet is not a source. What could not be verified or read is listed there as well, with
+  what was tried.
+- **Reference material.** Downloaded building instructions, datasheets and excerpts of third-party
+  sources are kept in `reference/` of the main checkout, the directory that holds `.git`, not in a
+  worktree. `reference/INDEX.md` maps every file to its source. The folder is ignored by git and is
+  never committed, because the material is under third-party copyright. Look there before
+  downloading something again, and add what you download.
+- **Installation.** The design of the installation in the castle lives in `docs/`:
+  [`lighting-plan.md`](docs/lighting-plan.md) holds the decisions and the channel plan,
+  [`hardware.md`](docs/hardware.md) the electrical design. Nothing of it is built; a statement
+  about hardware is a plan until someone has seen it work.
 
 ## Git
 
