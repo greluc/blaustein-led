@@ -29,9 +29,9 @@ otherwise. The pages are listed in [sources.md](sources.md).
 | **Electronics** | **257.52 €** |
 | Replacement bricks, an estimate | about 127 € |
 
-Not included: shipping, the optional parts marked below, a pin vice with drills, tools, and the
-circuit boards that may later replace the perfboards, which start at 14.20 € for three boards at
-Aisler.
+Not included: shipping, the optional parts marked below, a pin vice with drills, tools, the
+filament and resin of the printed parts, and the circuit boards that may later replace the
+perfboards, which start at 14.20 € for three boards at Aisler.
 
 ## Controllers and their boards
 
@@ -177,10 +177,7 @@ its Part Packs, bags of 25 to 200 pieces of one shape and colour.
 - A bag is ordered only for a shape that is really worked on; the model shows which. The
   replacement of a brick that cannot be seen need not match in colour, so a bag that fails the
   comparison with the set still serves there.
-- Nothing is printed as long as these bricks can be bought. A second copy of a set supplies what
-  no bag does, as long as the set is on sale.
-- The bricks that hold a board and the socket of the lead, such as plates and Technic bricks, are
-  chosen on the model and are not listed.
+- A second copy of a set supplies what no bag does, as long as the set is on sale.
 - Shipping costs 5.95 € and is free from 99 €.
 - Not priced: a slope in the orange of the set, if neither orange of the packs matches; the parts
   of the candles and of the hoods, whose shapes are identified on the model.

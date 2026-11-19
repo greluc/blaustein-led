@@ -2,8 +2,8 @@
 
 Whether parts that clamp on the bricks of Burg Blaustein can be printed on the owner's two printers,
 which printer suits which part, and how to find out before anything goes into the model. The owner
-leaves printing out as long as every brick that is needed can be bought, so this document is a
-fallback. Nothing was printed or measured for it. Every statement rests on a page listed under
+approves every printed part one by one; four are approved. Nothing was printed or measured for
+this document. Every statement rests on a page listed under
 [Printed parts](sources.md#printed-parts) in the list of sources; where a step size or a criterion
 is a proposal of this document, it says so.
 
@@ -27,30 +27,30 @@ The consequence is a design rule: a printed part is a service part. It sits capt
 original bricks, clamps slightly lighter than an original so that it cannot wear them, carries no
 load through its clutch alone, and is reprinted when it loosens.
 
-### Whether anything is printed
+### What may be printed
 
-The owner's decision, see [hardware.md](hardware.md#working-on-the-bricks): nothing is printed as
-long as every brick that is needed can really be bought. This document is therefore the fallback,
-for a single brick or part that cannot be bought. Such a part is printed only where it cannot be
-seen, because the owner's printers do not reach the colours of the set, see [Colour](#colour).
+The owner's rule, see [hardware.md](hardware.md#working-on-the-bricks): a part is printed only
+where a print is really worth it, and the owner approves each printed part before it is designed.
 
-Bought bricks, worked on where necessary, take the place of every part that was considered for
-printing. The right column is a proposal of this document; nobody has tried it.
-
-| Considered for printing | From bought bricks instead |
+| Part | Status |
 | --- | --- |
-| Brick with a hole or a duct for wires | A hole of 1 mm per wire in an original, or a notch in a hidden one |
-| Carrier of a fire or a candle with a seat for the LED | The original carrier with a drilled seat |
-| Brick with a pocket for a floor connector | A pocket cut into an original |
-| Holder for an LED with a diffuser | The drilled seat; the transparent part of the set spreads the light |
-| Insert that blocks stray light | A black plate, or aluminium tape |
-| Carrier for the board of a zone | The board lies on plates and is held by the bricks around it, by adhesive putty or by a cable tie through a Technic brick |
-| Mount of the socket of the power lead | The flange of the socket screwed to a brick or a plate with two drilled holes |
-| Strain relief for the lead | A cable tie through a Technic brick |
+| Carrier for the board of a zone | **Approved** |
+| Mount of the socket of the power lead | **Approved** |
+| Holder for an LED | **Approved** |
+| Insert that blocks stray light | **Approved** |
+| Brick with a pocket for a floor connector | Not approved. The pocket is cut into an original |
+| Brick or plate with a hole or a duct for wires | Not approved. A hole of 1 mm per wire in an original, or a notch in a hidden one |
+| Carrier of a fire or a candle with a seat for the LED | Not approved. The original carrier is drilled |
+| Strain relief for the lead | Not approved. A cable tie through a Technic brick |
+| A plain standard brick | Not printed. It is bought |
 
-Every brick that is worked on has a replacement at hand first. The bags of BlueBrixx cover the
-common shapes, and a second copy of a set supplies the rest as long as the set is on sale, see
-[hardware.md](hardware.md#replacement-bricks-first).
+- The four approved parts do not exist as a brick.
+- A further part is put to the owner with its reason first. Nothing is designed or printed before
+  the approval.
+- Every printed part stays out of sight, because the owner's printers do not reach the colours of
+  the set, see [Colour](#colour).
+- Every brick that is worked on instead has a replacement at hand first, see
+  [hardware.md](hardware.md#replacement-bricks-first).
 
 ### What speaks against a print
 
@@ -121,18 +121,23 @@ answers these on spare bricks.
 
 ## Which printer for which part
 
-This table applies only if a part has to be printed after all.
+The approved parts:
 
 | Part | Printer and material | Notes |
 | --- | --- | --- |
-| Brick or plate with a duct for several wires | Filament, PETG | Only where no face of it shows and a drilled hole does not do, such as a trunk that runs along a row of bricks inside a floor, in the rock or in the base. It is loaded in compression between originals. The duct runs in the roof or as a notch in a side wall, so the tubes that clamp stay whole. A single wire gets a hole in an original instead |
-| Wall feed-through | Not printed: an original Technic brick with a hole, or a drilled original brick | A wall shows on both sides, and a hole is quicker than a print |
-| Holder for a pre-wired LED, with a diffuser | Resin; the diffuser as a separate part | Features of a few tenths of a millimetre. It needs no real clutch and sits over one stud with light friction. A separate diffuser can be replaced if it yellows |
-| Connector brick between modules and floors | Filament, PETG or ASA | Only where it is hidden; where it shows, the pocket is cut into an original. It has to hold on several studs. The connector in it must separate with less force than the brick clamps, or lifting a floor pulls the brick off |
-| Mount that sets the socket of the power lead flush into the edge of the base | Filament, ASA in black | The part that takes a push and a pull at every plugging. It anchors on a wide field of studs behind original bricks and holds the flange of the socket, whose screw holes are 30 mm apart. Original bricks frame the socket, so that only its face shows |
 | Carrier for the board of a zone | Filament, PETG | Up to 12 × 10 studs: a perfboard of 90 mm × 70 mm measures 11.25 × 8.75 studs. The end of the controller with the antenna stays free of metal |
-| Strain relief for the lead | Filament, PETG, optionally with a TPU pad | Never resin |
+| Mount that sets the socket of the power lead flush into the edge of the base | Filament, ASA in black | The part that takes a push and a pull whenever the lead is attached or detached. It anchors on a wide field of studs behind original bricks and holds the flange of the socket, whose screw holes are 30 mm apart. Original bricks frame the socket, so that only its face shows |
+| Holder for a pre-wired LED, with a diffuser | Resin; the diffuser as a separate part | Features of a few tenths of a millimetre. It needs no real clutch and sits over one stud with light friction. A separate diffuser can be replaced if it yellows |
 | Inserts that block stray light | Filament in black; resin for very thin or shaped masks | Check against the real LED whether the thin wall is opaque. Aluminium tape remains the fallback |
+
+Researched, but not approved. The rows record what was found, for the case that the owner
+approves one of them:
+
+| Part | Printer and material | Notes |
+| --- | --- | --- |
+| Connector brick between modules and floors | Filament, PETG or ASA | Only where it is hidden. It has to hold on several studs. The connector in it must separate with less force than the brick clamps, or lifting a floor pulls the brick off |
+| Brick or plate with a duct for several wires | Filament, PETG | Only where no face of it shows, such as inside a floor, in the rock or in the base, loaded in compression between originals. The duct runs in the roof or as a notch in a side wall, so the tubes that clamp stay whole |
+| Strain relief for the lead | Filament, PETG, optionally with a TPU pad | Never resin |
 
 A 1×1 plate with a duct that still clamps is beyond the filament printer; there the wire runs
 between the studs or through a drilled original, as described in [hardware.md](hardware.md). Every
@@ -154,9 +159,9 @@ The parts are modelled in OpenSCAD: all of them are prisms with studs, tubes, po
 
 The plan is a small module of this repository under `MIT OR Apache-2.0` that models only what these
 parts need and exposes every fitting dimension as a parameter per printer and material, with
-`LEGO.scad` as the reference. No design file is part of the repository: none is written while
-printing is left out, no tool that renders one was at hand in the session that wrote this document,
-and the parameters come from the calibration below.
+`LEGO.scad` as the reference. No design file is part of the repository yet: the owner has not
+asked for one, no tool that renders one was at hand in the session that wrote this document, and
+the parameters come from the calibration below.
 
 Files are named after their function, carry no logo on the studs and copy no existing element. The
 patent on the basic brick expired decades ago and its shape cannot be a trademark in the European
@@ -180,8 +185,8 @@ shows. Whether the frame hides the mount completely is seen on the model.
 
 ## Test plan
 
-The plan is carried out only if a part has to be printed. Tests never touch a brick that is built
-in.
+The plan comes before the first printed part goes into the model. Tests never touch a brick that is
+built in.
 
 ### Before printing
 
@@ -231,17 +236,16 @@ next to the design sources. Any change of them repeats the print.
 1. The calibration print and the parameter file, PETG first, then resin.
 2. A plain 1×2 plate and a 2×2 brick with the chosen offsets, as proof that whole parts behave like
    the calibration print.
-3. The plate and the brick with a duct, and a check that a wall built with them closes without gaps.
-4. The inserts against stray light and the LED holder with its diffuser, tested on the bench with a
+3. The inserts against stray light and the LED holder with its diffuser, tested on the bench with a
    real LED.
-5. The carrier for the board of a zone and the strain relief.
-6. The mount of the power lead.
-7. The connector bricks between floors and modules, the part with the highest risk.
+4. The carrier for the board of a zone.
+5. The mount of the power lead.
+
+The plain plate and brick of step 2 are test pieces and are not built in.
 
 ## Open points
 
-- Whether a brick or a part turns up that cannot be bought. Only then a print is considered.
-- Whether bricks hold a board and the socket of the power lead well enough.
+- Whether a further part is worth a print. Each one is the owner's decision.
 - The dimensions, the clutch and the colours of the bricks of this set.
 - The nozzles at hand and whether the filtration for ASA is fitted.
 - Shrinkage and compensation values of the resins on this printer.

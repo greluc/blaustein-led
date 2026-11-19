@@ -58,8 +58,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     castle; a driver stage of 74HCT541 buffers on 5 V with one wire per channel and the resistor
     of each LED in its room; a single power lead with fused 5 V branches between the controllers;
     keyed connectors; the rules for working on the bricks (an original is drilled, cut or glued
-    once a replacement brick is at hand; nothing is printed as long as every brick that is needed
-    can be bought); and the installation rules.
+    once a replacement brick is at hand; a part is printed only where it is really worth it and
+    the owner has approved it); and the installation rules.
   - `docs/bill-of-materials.md`: every part with retailer, article and price, the replacement
     bricks, and the orders by stage.
   - `docs/model.md`: the sets of the series with their item numbers, light points, joints and
@@ -68,8 +68,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     of one kit maker examined part by part, the comparison of direct drive, a 5 V rail and
     addressable LEDs, and the comparison of six arrangements of controllers.
   - `docs/printed-parts.md`: whether parts that clamp on the bricks can be printed, what speaks
-    against a print, what bought bricks do instead, and which printer and which test plan apply
-    if a part has to be printed after all.
+    against a print, the four parts the owner approved for printing, which printer suits which
+    part, and a test plan.
   - `docs/sources.md`: every source that was opened with what it confirmed or corrected, what
     stays unverified and what could not be read.
   - `docs/research-brief.md`: the brief for that research and what became of it.

@@ -17,19 +17,20 @@ The brief was carried out on 2026-11-19. It stays in the repository as the recor
 | 3. How brick models are lit | Done: [lighting-practice.md](lighting-practice.md) |
 | 4. Make it modular | Done as a design: controllers per zone, connectors and pin assignment in [hardware.md](hardware.md), stages in [lighting-plan.md](lighting-plan.md). The connectors are untried and bought as samples first |
 | 5. Bill of materials | Done: [bill-of-materials.md](bill-of-materials.md) |
-| 6. Printed parts | Findings and a test plan done: [printed-parts.md](printed-parts.md). The owner leaves printing out as long as every brick that is needed can be bought, so no design file was added |
+| 6. Printed parts | Findings and a test plan done: [printed-parts.md](printed-parts.md). The owner approves each printed part; four are approved. No design file was added |
 | 7. Review of the whole plan | Done: the section "What the research changed" of [lighting-plan.md](lighting-plan.md) |
 | 8. Verify the firmware | The `usb-update` feature was compared with the Pico SDK and picotool: every constant matches, the Microsoft descriptor differs in form and stays to be shown on Windows, see the section "Firmware" of [lighting-plan.md](lighting-plan.md). The channel table of the first controller is installed. No board was connected, so nothing was flashed or measured |
 
 While the brief was carried out, the owner changed three of its fixed constraints, and the plan
 follows the new ones: the controllers are several Raspberry Pi Pico 2 W inside the castle instead
 of one Pico 2 in the rock base; bricks may be drilled, cut and glued once replacement bricks are at
-hand, and nothing is printed as long as every brick that is needed can be bought; and the lighting
-is built in stages, starting with the base castle and the Bergfried.
+hand, and a part is printed only where it is really worth it and the owner has approved it; and
+the lighting is built in stages, starting with the base castle and the Bergfried.
 
 Open after this session: the first order and the bench test, an update over the radio, the
 firmware support for several controllers, a layout and later a circuit board for the board of a
-zone, and the inside of the display base, which is not published yet.
+zone, the design files of the approved printed parts, and the inside of the display base, which
+is not published yet.
 
 ## The project
 

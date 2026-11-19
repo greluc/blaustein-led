@@ -76,6 +76,10 @@ The default target is the RP2350, so host tests need the `test-host` / `clippy-h
   [`lighting-plan.md`](docs/lighting-plan.md) holds the decisions and the channel plan,
   [`hardware.md`](docs/hardware.md) the electrical design. Nothing of it is built; a statement
   about hardware is a plan until someone has seen it work.
+- **Printed parts.** A part of the installation is printed only where a print is really worth it
+  and the owner has approved that part; [`docs/printed-parts.md`](docs/printed-parts.md) lists the
+  approved ones. Ask the owner before you plan, design or add a further printed part. Bricks that
+  have to change are bought bricks, worked on once a replacement is at hand.
 
 ## Git
 
