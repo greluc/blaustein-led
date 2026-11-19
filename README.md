@@ -45,7 +45,7 @@ The source lives at [github.com/greluc/blaustein-led](https://github.com/greluc/
 ## Hardware
 
 - Board: Raspberry Pi Pico 2 (RP2350A).
-- LEDs: orange LEDs look best; any LED works.
+- LEDs: amber or orange for flames, red for embers, warm white for candles and room light.
 - Pins: GPIO 7 to GPIO 22, one LED each. GPIO `n` is PWM channel `n mod 16`, so this block uses
   every PWM output of the RP2350A exactly once. `CHANNELS` LEDs are used in the order GPIO 16 to
   GPIO 22, then GPIO 7 to GPIO 15 (slice by slice, A before B):
@@ -55,12 +55,17 @@ The source lives at [github.com/greluc/blaustein-led](https://github.com/greluc/
   | Channel A | GPIO 16 | GPIO 18 | GPIO 20 | GPIO 22 | GPIO 8 | GPIO 10 | GPIO 12 | GPIO 14 |
   | Channel B | GPIO 17 | GPIO 19 | GPIO 21 | GPIO 7 | GPIO 9 | GPIO 11 | GPIO 13 | GPIO 15 |
 
-- Wiring per channel: GPIO → series resistor (330 Ω to 1 kΩ) → LED anode; LED cathode → GND.
+- Wiring per channel: GPIO → series resistor → LED anode; LED cathode → GND. Start with about
+  1 kΩ for amber, orange and red and about 330 Ω for warm white.
 
 Use a series resistor on every channel. The firmware assumes active-high LEDs. A GPIO drives only
-a few milliamperes, and the sum over all pins is limited as well; with more than a handful of LEDs,
-or for brighter ones, switch each LED through a small NPN transistor or N-channel MOSFET (or use an
-LED driver) and feed it from the 5 V or 3.3 V supply instead of the pin.
+a few milliamperes, and the sum over all pins is limited as well: plan for at most 4 mA per pin and
+40 mA in total. For more than two LEDs or more brightness on a channel, switch the LEDs through a
+small logic-level MOSFET.
+
+[docs/hardware.md](docs/hardware.md) holds the full electrical design, the power supply and the
+installation in the model; [docs/lighting-plan.md](docs/lighting-plan.md) holds the lighting
+concept and the channel plan.
 
 ## Configuration
 
@@ -184,6 +189,9 @@ the code itself builds on stable. CI runs all of the above on every pull request
 
 | Topic | Document |
 | --- | --- |
+| Lighting concept, channel plan and the analysis behind them | [docs/lighting-plan.md](docs/lighting-plan.md) |
+| Wiring, power supply, installation and bill of materials | [docs/hardware.md](docs/hardware.md) |
+| Research still to do, as a brief for a session with internet access | [docs/research-brief.md](docs/research-brief.md) |
 | Contributing, checks and commit rules | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | Reporting a vulnerability | [.github/SECURITY.md](.github/SECURITY.md) |
 | Code of Conduct | [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) |

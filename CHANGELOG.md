@@ -9,6 +9,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Documentation of the installation: `docs/lighting-plan.md` with the analysis of 2.0.0, the
+  lighting concept, a draft channel plan for the full castle and every source that still has to
+  be verified; `docs/hardware.md` with the electrical design, the power supply with a magnetic
+  coupling, the installation rules and a bill of materials; `docs/research-brief.md` with the
+  research a session with internet access still has to do.
 - Presets for the light roles of a castle model: `FireConfig::HEARTH` (fireplace, cooking fire),
   `FireConfig::TORCH`, `FireConfig::CANDLE` (candle, oil lamp), `FireConfig::EMBER` (embers,
   forge) and `FireConfig::AMBIENT` (room light). They are starting points tuned in a host
@@ -31,6 +36,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The README recommends about 1 kΩ per amber, orange or red LED and about 330 Ω per warm white
+  LED instead of 330 Ω to 1 kΩ, and a budget of 4 mA per pin and 40 mA in total: 330 Ω on sixteen
+  orange LEDs would peak at about 63 mA.
 - The look of the flame changed. Three layers of smoothly interpolated value noise (a slow swell,
   a faster sway and a fast flicker), each gliding to a new random level after a random time, and
   occasional gusts that deepen the flicker replace the triangular breathing envelope, the jitter,
