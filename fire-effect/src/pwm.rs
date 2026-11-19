@@ -1,26 +1,41 @@
 // SPDX-FileCopyrightText: 2026 the Blaustein LED contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! Gamma-corrected PWM duty values and PWM timing.
+//! Gamma-corrected PWM duty values, PWM timing and the phases of the slices.
 
-use crate::fixed_point::Q16;
+use crate::intensity::Intensity;
 
-/// Square of the highest intensity; normalizes the gamma curve to full scale.
-const MAX_SQUARED: u32 = 255 * 255;
+/// Full-scale intensity; the square law is normalized to it.
+const FULL: u32 = u16::MAX as u32;
 
-/// Returns the square-law brightness of `intensity` in Q16, rounded to nearest.
+/// Returns `value / 65535`, rounded half up.
 ///
-/// Computed instead of looked up: one multiply and one hardware divide cost less than the
-/// 512-byte table they replace. `255² * u16::MAX` still fits in u32.
-fn gamma_q16(intensity: u8) -> u32 {
-    let squared = u32::from(intensity) * u32::from(intensity);
-    (squared * u32::from(u16::MAX) + MAX_SQUARED / 2) / MAX_SQUARED
+/// `value` must stay at most `65535²`, so the sum fits in `u32`. Dividing by a constant compiles
+/// to a multiply.
+const fn div_full_rounded(value: u32) -> u32 {
+    (value + FULL / 2) / FULL
 }
 
-/// Maps an intensity to a PWM compare value in `0..=top`.
+/// Returns the square-law brightness of `intensity` on the intensity scale,
+/// `round(intensity² / 65535)`; full scale maps to `u16::MAX`.
+const fn gamma(intensity: Intensity) -> u32 {
+    let raw = intensity.get() as u32;
+    div_full_rounded(raw * raw)
+}
+
+/// Maps an intensity to a PWM compare value in `0..=top` through a square-law gamma curve.
+///
+/// Rounding rule: `duty = round(round(i² / 65535) * top / 65535)` for the raw intensity `i`,
+/// both roundings half up. It is monotonic, maps dark to 0 and full scale to `top`, and deviates
+/// from the exact `top * (i / 65535)²` by less than one count. Both steps are a multiply and a
+/// division by a constant, so no table is needed.
 #[must_use]
-pub fn duty_for(intensity: u8, top: u16) -> u16 {
-    ((gamma_q16(intensity) * (u32::from(top) + 1)) >> Q16) as u16
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "`gamma <= 65535` keeps the result at most `top`"
+)]
+pub const fn duty_for(intensity: Intensity, top: u16) -> u16 {
+    div_full_rounded(gamma(intensity) * top as u32) as u16
 }
 
 /// Returns the PWM `top` value for a slice clocked at `clock_hz` with an integer divider.
@@ -37,59 +52,145 @@ pub fn calculate_top(clock_hz: u32, desired_freq_hz: u32, divider: u8) -> u16 {
     u16::try_from(period_counts.saturating_sub(1)).unwrap_or(u16::MAX)
 }
 
+/// Returns the counter value that places slice `slice` of `slices` at its share of the PWM
+/// period, `slice * (top + 1) / slices`, truncated.
+///
+/// Slices started together from these counters switch their outputs on at evenly spread instants
+/// of the period instead of all at once, which spreads the LED current over the period. `slice`
+/// must be below `slices`; the result is then at most `top`.
+///
+/// # Panics
+///
+/// Panics if `slices` is zero.
+#[must_use]
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "`slice < slices` keeps the offset below the period of `top + 1` counts, within u16"
+)]
+pub const fn phase_offset(slice: usize, slices: usize, top: u16) -> u16 {
+    // In `usize`, which the RP2350 divides in hardware; a 64-bit division would pull in a
+    // software routine of almost 1 KB whenever `slices` is not a power of two.
+    (slice * (top as usize + 1) / slices) as u16
+}
+
 #[cfg(test)]
 mod tests {
-    //! Gamma table, duty mapping and PWM timing.
+    //! Gamma curve, duty mapping, PWM timing and slice phases.
 
-    use super::{calculate_top, duty_for, gamma_q16};
+    use super::{calculate_top, duty_for, gamma, phase_offset};
+    use crate::intensity::Intensity;
 
     /// System clock of the RP2350 at its default configuration.
     const CLK_SYS_HZ: u32 = 150_000_000;
 
     /// `top` values spanning the full counter range.
-    const TOPS: [u16; 5] = [0, 1, 255, 5_999, u16::MAX];
+    const TOPS: [u16; 6] = [0, 1, 255, 2_999, 5_999, u16::MAX];
+
+    /// Square of full scale, the denominator of the exact square law.
+    const FULL_SQUARED: u64 = 65_535 * 65_535;
+
+    /// Returns every intensity from dark to full scale.
+    fn every_intensity() -> impl Iterator<Item = Intensity> {
+        (0..=u16::MAX).map(Intensity::new)
+    }
+
+    /// Returns `value / 65535` rounded half up, in 64 bits.
+    fn reference_div_full(value: u64) -> u64 {
+        (value + 65_535 / 2) / 65_535
+    }
 
     /// The gamma curve runs from zero to full scale without decreasing.
     #[test]
     fn gamma_is_monotonic_from_zero_to_full_scale() {
-        assert_eq!(gamma_q16(0), 0, "gamma must start at zero");
+        assert_eq!(gamma(Intensity::OFF), 0, "gamma must start at zero");
         assert_eq!(
-            gamma_q16(u8::MAX),
+            gamma(Intensity::FULL),
             u32::from(u16::MAX),
             "gamma must end at full scale"
         );
         let mut previous = 0;
-        for intensity in 0..=u8::MAX {
-            let gamma = gamma_q16(intensity);
-            assert!(gamma >= previous, "gamma decreased at {intensity}");
-            previous = gamma;
+        for intensity in every_intensity() {
+            let brightness = gamma(intensity);
+            assert!(brightness >= previous, "gamma decreased at {intensity:?}");
+            previous = brightness;
         }
     }
 
     /// The gamma curve matches the rounded square law computed in 64 bits.
     #[test]
     fn gamma_matches_square_law() {
-        let max_squared = u64::from(u8::MAX) * u64::from(u8::MAX);
-        for intensity in 0..=u8::MAX {
-            let squared = u64::from(intensity) * u64::from(intensity);
-            let expected = (squared * u64::from(u16::MAX) + max_squared / 2) / max_squared;
+        for intensity in every_intensity() {
+            let expected = reference_div_full(u64::from(intensity.get()).pow(2));
             assert_eq!(
-                u64::from(gamma_q16(intensity)),
+                u64::from(gamma(intensity)),
                 expected,
-                "gamma differs at {intensity}"
+                "gamma differs at {intensity:?}"
             );
         }
     }
 
-    /// Duty values stay within `0..=top` and reach both ends.
+    /// For every intensity and every `top`, the duty is monotonic, within `0..=top`, reaches both
+    /// ends and follows the stated rounding rule.
     #[test]
-    fn duty_spans_zero_to_top() {
+    fn duty_follows_the_rounding_rule() {
         for top in TOPS {
-            assert_eq!(duty_for(0, top), 0, "intensity 0 must switch the LED off");
-            assert_eq!(duty_for(u8::MAX, top), top, "intensity 255 must reach top");
-            for intensity in 0..=u8::MAX {
-                assert!(duty_for(intensity, top) <= top, "duty exceeded top {top}");
+            assert_eq!(
+                duty_for(Intensity::OFF, top),
+                0,
+                "dark must switch the LED off"
+            );
+            assert_eq!(
+                duty_for(Intensity::FULL, top),
+                top,
+                "full scale must reach top {top}"
+            );
+            let mut previous = 0;
+            for intensity in every_intensity() {
+                let duty = duty_for(intensity, top);
+                let brightness = reference_div_full(u64::from(intensity.get()).pow(2));
+                let rule = reference_div_full(brightness * u64::from(top));
+                assert_eq!(
+                    u64::from(duty),
+                    rule,
+                    "duty breaks the rule at {intensity:?}, top {top}"
+                );
+                assert!(
+                    duty >= previous,
+                    "duty decreased at {intensity:?}, top {top}"
+                );
+                assert!(duty <= top, "duty exceeded top {top} at {intensity:?}");
+                previous = duty;
             }
+        }
+    }
+
+    /// The duty deviates from the exact square law by less than one count.
+    #[test]
+    fn duty_is_within_one_count_of_the_square_law() {
+        for top in TOPS {
+            for intensity in every_intensity() {
+                // Compare `duty` with `top * i² / 65535²` scaled by `65535²` to stay in integers.
+                let exact = u64::from(top) * u64::from(intensity.get()).pow(2);
+                let duty = u64::from(duty_for(intensity, top)) * FULL_SQUARED;
+                assert!(
+                    duty.abs_diff(exact) < FULL_SQUARED,
+                    "duty is a count or more off the square law at {intensity:?}, top {top}"
+                );
+            }
+        }
+    }
+
+    /// At 25 kHz, adjacent intensities move the duty by at most one count, so dim lights fade
+    /// without visible steps of the intensity.
+    #[test]
+    fn adjacent_intensities_move_the_duty_by_one_count_at_most() {
+        let top = calculate_top(CLK_SYS_HZ, 25_000, 1);
+        for raw in 0..u16::MAX {
+            let step = duty_for(Intensity::new(raw + 1), top) - duty_for(Intensity::new(raw), top);
+            assert!(
+                step <= 1,
+                "duty jumped by {step} counts above intensity {raw}"
+            );
         }
     }
 
@@ -133,5 +234,45 @@ mod tests {
     #[should_panic(expected = "divide by zero")]
     fn top_rejects_zero_frequency() {
         let _top = calculate_top(CLK_SYS_HZ, 0, 1);
+    }
+
+    /// For one to twelve slices, the first starts at zero and the offsets rise through the period
+    /// in steps that differ by at most one count, so the slices are spread evenly.
+    #[test]
+    fn phases_spread_evenly_over_the_period() {
+        for top in TOPS {
+            let period = u32::from(top) + 1;
+            for slices in 1..=12 {
+                let offsets: Vec<u32> = (0..slices)
+                    .map(|slice| u32::from(phase_offset(slice, slices, top)))
+                    .collect();
+                assert_eq!(
+                    offsets[0], 0,
+                    "the first of {slices} slices must start at zero"
+                );
+                let mut steps: Vec<u32> =
+                    offsets.windows(2).map(|pair| pair[1] - pair[0]).collect();
+                // The step from the last slice round to the first closes the period.
+                steps.push(period - offsets[slices - 1]);
+                let (shortest, longest) = (steps.iter().min(), steps.iter().max());
+                assert!(
+                    longest
+                        .zip(shortest)
+                        .is_some_and(|(long, short)| long - short <= 1),
+                    "{slices} slices at top {top} are spread unevenly: {offsets:?}"
+                );
+                assert!(
+                    offsets.iter().all(|&offset| offset <= u32::from(top)),
+                    "an offset of {slices} slices exceeds top {top}: {offsets:?}"
+                );
+            }
+        }
+    }
+
+    /// `phase_offset` rejects zero slices.
+    #[test]
+    #[should_panic(expected = "divide by zero")]
+    fn phases_reject_zero_slices() {
+        let _offset = phase_offset(0, 0, u16::MAX);
     }
 }

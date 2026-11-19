@@ -9,24 +9,34 @@ agent needs and does not repeat it.
 Firmware for the campfire LEDs of Burg Blaustein on a Raspberry Pi Pico 2 (RP2350), written in Rust
 with Embassy. A Cargo workspace with two packages:
 
-- `fire-effect/`: `no_std` library without dependencies. `FireConfig` and its compile-time
-  validation, `FireProfile`, the generic `FireState<P>` simulation, the gamma curve and the PWM
-  `top` calculation. All logic and all tests live here.
+- `fire-effect/`: `no_std` library without dependencies. `InstallationConfig` and `Installation`
+  (PWM and tick), `FireConfig` (the look of a role), its presets and compile-time validation,
+  `FireProfile`, the generic `FireState<S, P>` simulation, the `Follower`, the 16-bit `Intensity`,
+  `LightingConfig` and `Lighting` (role looks, follower, `IgnitionConfig`, the table of `Channel`s
+  driven by a `Light`, and their validation), the `Lights<L, N>` bank that runs every channel with
+  ignition and trim, the `Identify` pattern, the seed mixing, the gamma curve, the PWM `top`
+  calculation, the slice phases and `picotool_reset`, which decodes the request of the picotool
+  reset interface. All logic and all tests live here.
 - `/` (`blaustein-led`): the binary for `thumbv8m.main-none-eabihf`. `src/config.rs` holds the
-  installed `CFG`, the number of LEDs `CHANNELS` (1 to 16) and the `Blaustein` profile;
-  `src/main.rs` wires only the PWM slices in use (channels on GPIO 7 to GPIO 22, GPIO `n` =
-  channel `n mod 16`), the watchdog, the panic handler and the picotool metadata.
+  installation-wide `INSTALLATION`, the installed `LIGHTING` with the channel table, `CHANNELS`
+  (1 to 16, the length of the table) and the `Blaustein` installation; `src/outputs.rs` routes,
+  phases and drives the PWM slices in use (channels on GPIO 7 to GPIO 22, GPIO `n` = channel
+  `n mod 16`); `src/effect.rs` picks the effect of the build (`Lights`, seeded from the ring
+  oscillator, or `Identify` with the `identify` feature); `src/usb_update.rs`, only with the
+  `usb-update` feature, runs the USB device with the picotool reset interface and reboots into
+  the USB bootloader on request; `src/main.rs` wires the pins, the watchdog, the panic handler,
+  the picotool metadata and the tasks.
 
 ## Commands
 
 | Purpose | Command |
 | --- | --- |
 | Format | `cargo +nightly fmt --all` |
-| Lint the firmware | `cargo clippy --release` and `cargo clippy --profile release-debug --features debug` |
+| Lint the firmware | `cargo clippy --release`, `cargo clippy --release --features identify`, `cargo clippy --release --features usb-update`, `cargo clippy --release --features identify,usb-update`, `cargo clippy --profile release-debug --features debug` and `cargo clippy --profile release-debug --features debug,usb-update` |
 | Lint `fire-effect` with tests | `cargo clippy-host` |
 | Test | `cargo test-host` |
 | Dependencies | `cargo deny check` |
-| Build | `cargo build --release` |
+| Build | `cargo build --release`, `cargo build --release --features identify`, `cargo build --release --features usb-update` and `cargo build --release --features identify,usb-update` |
 | Image size | `llvm-size -A target/thumbv8m.main-none-eabihf/release/blaustein-led` (from the `llvm-tools` component) |
 
 The default target is the RP2350, so host tests need the `test-host` / `clippy-host` aliases from
@@ -52,6 +62,24 @@ The default target is the RP2350, so host tests need the `test-host` / `clippy-h
   never the other way round.
 - **No shortcuts.** No dead code, duplication, magic numbers or swallowed errors. A clean fix that
   is out of scope becomes a follow-up issue, not a comment.
+- **Sources.** Every external source a document relies on is listed in
+  [`docs/sources.md`](docs/sources.md) in the same change: the link, the date it was opened unless
+  it is the date stated at the top of that file, and what it confirmed or corrected. A search
+  result snippet is not a source. What could not be verified or read is listed there as well, with
+  what was tried.
+- **Reference material.** Downloaded building instructions, datasheets and excerpts of third-party
+  sources are kept in `reference/` of the main checkout, the directory that holds `.git`, not in a
+  worktree. `reference/INDEX.md` maps every file to its source. The folder is ignored by git and is
+  never committed, because the material is under third-party copyright. Look there before
+  downloading something again, and add what you download.
+- **Installation.** The design of the installation in the castle lives in `docs/`:
+  [`lighting-plan.md`](docs/lighting-plan.md) holds the decisions and the channel plan,
+  [`hardware.md`](docs/hardware.md) the electrical design. Nothing of it is built; a statement
+  about hardware is a plan until someone has seen it work.
+- **Printed parts.** A part of the installation is printed only where a print is really worth it
+  and the owner has approved that part; [`docs/printed-parts.md`](docs/printed-parts.md) lists the
+  approved ones. Ask the owner before you plan, design or add a further printed part. Bricks that
+  have to change are bought bricks, worked on once a replacement is at hand.
 
 ## Git
 

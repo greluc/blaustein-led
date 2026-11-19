@@ -46,8 +46,19 @@ debug = [
     "embassy-executor/defmt",
     "embassy-rp/defmt",
     "embassy-time/defmt",
+    "embassy-usb?/defmt",
     "panic-probe/print-defmt",
 ]
+# Enable this feature to replace the fire with an installation aid: every LED
+# blinks its own 1-based channel number, all channels in step, so wires can be
+# matched to channels. The watchdog and the panic handler stay as in the default
+# build.
+identify = []
+# Enable this feature to add a USB device with the reset interface of picotool,
+# so a host on the USB lead reboots the running firmware into the USB
+# bootloader and flashes it without the BOOTSEL button. The lights, the
+# watchdog and the panic handler stay as in the build without it.
+usb-update = ["dep:embassy-usb", "dep:embassy-sync", "dep:embassy-futures"]
 
 [dependencies]
 fire-effect = { path = "fire-effect" }
@@ -70,6 +81,12 @@ cortex-m = "0.7.10"
 panic-probe = { version = "1.0.0", optional = true }
 defmt = { version = "1.2.0", optional = true }
 defmt-rtt = { version = "1.3.1", optional = true }
+# Only pulled in by the `usb-update` feature. embassy-usb is the USB device
+# stack; embassy-sync and embassy-futures, already in the tree through
+# embassy-rp, pass a reboot request from the device to the reboot.
+embassy-usb = { version = "0.6.0", default-features = false, optional = true }
+embassy-sync = { version = "0.8.0", optional = true }
+embassy-futures = { version = "0.1.2", optional = true }
 
 [[bin]]
 name = "blaustein-led"

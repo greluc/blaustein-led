@@ -12,6 +12,10 @@
 *.bin
 *.hex
 
+# Downloaded reference material (building instructions, datasheets). It is under
+# third-party copyright and stays local; docs/sources.md lists where it comes from.
+/reference/
+
 # IDEs
 .idea/
 *.iml

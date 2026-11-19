@@ -5,71 +5,43 @@
 
 use core::marker::PhantomData;
 
-use crate::config::{FireConfig, FireProfile};
-use crate::fixed_point::{Q8, Q16};
-
-/// Half of one Q8 unit; adding it before a right shift rounds to nearest.
-const Q8_HALF: i32 = 1 << (Q8 - 1);
-
-/// Offset that centers a random byte around zero.
-const BYTE_CENTER: i32 = 128;
-
-/// Upper bound of the target intensity.
-const INTENSITY_MAX: i32 = 255;
-
-/// First multiplier of the MurmurHash3 32-bit finalizer.
-const FMIX_MULTIPLIER_1: u32 = 0x85eb_ca6b;
-
-/// Second multiplier of the MurmurHash3 32-bit finalizer.
-const FMIX_MULTIPLIER_2: u32 = 0xc2b2_ae35;
-
-/// Returns the PRNG seed of a channel: distinct per channel and never zero.
-///
-/// The MurmurHash3 finalizer is a bijection on `u32` that maps only 0 to 0, so mixing
-/// `channel + 1` gives a distinct non-zero seed for every channel below `u32::MAX`.
-#[must_use]
-pub const fn channel_seed(channel: u32) -> u32 {
-    let mut hash = channel.wrapping_add(1);
-    hash ^= hash >> 16_u32;
-    hash = hash.wrapping_mul(FMIX_MULTIPLIER_1);
-    hash ^= hash >> 13_u32;
-    hash = hash.wrapping_mul(FMIX_MULTIPLIER_2);
-    hash ^= hash >> 16_u32;
-    hash
-}
+use crate::config::FireProfile;
+use crate::fixed_point::Q16;
+use crate::installation::Installation;
+use crate::intensity::Intensity;
+use crate::noise::ValueNoise;
+use crate::rng::{Rng, channel_seed};
+use crate::tuning::Tuning;
 
 /// State of the fire simulation for one LED channel.
 ///
-/// The configuration comes from the profile `P` rather than a field, so every
-/// configuration-derived operand folds into an immediate.
-#[derive(Clone, Copy)]
-pub struct FireState<P> {
-    /// Xorshift32 state, never zero.
-    rng: u32,
-    /// Breathing envelope in Q16, within `MIN_Q16..=MAX_Q16`.
-    base_q16: i32,
-    /// Signed envelope step in Q16; the sign is the direction of travel.
-    step_q16: i32,
-    /// Smoothed output intensity in Q8, within `0..=255 << 8`.
-    out_q8: i32,
-    /// Decaying flare intensity.
-    pulse: i32,
-    /// Binds the state to its compile-time configuration.
-    profile: PhantomData<P>,
+/// The installation `S` supplies the tick and the profile `P` the look. Both come from types
+/// rather than fields, so every derived constant folds into an immediate. The state holds no
+/// shared phase: a channel starts at a random point of every layer, drawn from its seed.
+#[derive(Clone, Copy, Debug)]
+pub struct FireState<S, P> {
+    /// Source of every random choice of this channel.
+    rng: Rng,
+    /// The slow swell.
+    swell: ValueNoise,
+    /// The faster sway.
+    sway: ValueNoise,
+    /// The fast flicker, which also shapes the gusts.
+    flicker: ValueNoise,
+    /// Envelope of the current gust, fading from `u16::MAX` to 0.
+    gust: u16,
+    /// Binds the state to its compile-time installation and look.
+    profile: PhantomData<(S, P)>,
 }
 
-impl<P: FireProfile> FireState<P> {
-    /// Validated configuration; an invalid profile fails the build where it is used.
-    const CONFIG: FireConfig = {
-        P::CONFIG.validate();
-        P::CONFIG
-    };
-    /// Upper bound of the breathing envelope in Q16.
-    const MAX_Q16: i32 = (Self::CONFIG.max_intensity as i32) << Q16;
-    /// Lower bound of the breathing envelope in Q16.
-    const MIN_Q16: i32 = (Self::CONFIG.min_intensity as i32) << Q16;
+impl<S: Installation, P: FireProfile> FireState<S, P> {
+    /// Per-tick constants; an invalid installation or look fails the build where it is used.
+    const TUNING: Tuning = Tuning::new(&S::CONFIG, &P::CONFIG);
 
     /// Creates a channel simulation from a non-zero PRNG seed.
+    ///
+    /// Usable at compile time and at run time, so seeds may come from [`channel_seed`] or from a
+    /// hardware random source.
     ///
     /// # Panics
     ///
@@ -77,16 +49,16 @@ impl<P: FireProfile> FireState<P> {
     /// turn that into a build error.
     #[must_use]
     pub const fn new(seed: u32) -> Self {
-        assert!(
-            seed != 0,
-            "a zero seed would keep Xorshift32 at zero forever"
-        );
+        let mut rng = Rng::new(seed);
+        let swell = ValueNoise::new(&mut rng, Self::TUNING.swell.rates);
+        let sway = ValueNoise::new(&mut rng, Self::TUNING.sway.rates);
+        let flicker = ValueNoise::new(&mut rng, Self::TUNING.flicker.rates);
         Self {
-            rng: seed,
-            base_q16: Self::MIN_Q16,
-            step_q16: Self::CONFIG.step_per_tick_q16(),
-            out_q8: (Self::CONFIG.min_intensity as i32) << Q8,
-            pulse: 0,
+            rng,
+            swell,
+            sway,
+            flicker,
+            gust: 0,
             profile: PhantomData,
         }
     }
@@ -97,6 +69,7 @@ impl<P: FireProfile> FireState<P> {
     #[must_use]
     pub const fn channels<const N: usize>() -> [Self; N]
     where
+        S: Copy,
         P: Copy,
     {
         let mut states = [Self::new(channel_seed(0)); N];
@@ -111,177 +84,201 @@ impl<P: FireProfile> FireState<P> {
     }
 
     /// Advances the simulation by one tick and returns the new intensity.
-    pub fn update(&mut self) -> u8 {
-        let base = self.advance_envelope();
-
-        // One PRNG step per tick; jitter and flare read independent bytes of the same word.
-        self.rng = xorshift32(self.rng);
-        let [jitter_byte, _, _, pulse_byte] = self.rng.to_be_bytes();
-
-        let target =
-            (base + jitter(jitter_byte, Self::CONFIG.jitter_max) + self.advance_pulse(pulse_byte))
-                .clamp(0_i32, INTENSITY_MAX);
-        self.smooth_towards(target)
-    }
-
-    /// Moves the triangular breathing envelope one step and returns its integer part.
-    fn advance_envelope(&mut self) -> i32 {
-        self.base_q16 = (self.base_q16 + self.step_q16).clamp(Self::MIN_Q16, Self::MAX_Q16);
-        if self.base_q16 == Self::MIN_Q16 || self.base_q16 == Self::MAX_Q16 {
-            self.step_q16 = -self.step_q16;
-        }
-        self.base_q16 >> Q16
-    }
-
-    /// Triggers a flare with probability `pulse_prob / 256`, decays it and returns it.
-    fn advance_pulse(&mut self, random: u8) -> i32 {
-        if random < Self::CONFIG.pulse_prob {
-            self.pulse += i32::from(Self::CONFIG.pulse_boost);
-        }
-        self.pulse = (self.pulse * i32::from(Self::CONFIG.pulse_decay_q8)) >> Q8;
-        self.pulse
-    }
-
-    /// Moves the output a `smooth_q8 / 256` fraction towards `target` and returns it.
+    ///
+    /// The result lies within `peak - total depth ..= peak` of the profile's look.
     #[expect(
         clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "the EMA never overshoots its target in 0..=255, so `out_q8 >> 8` is in 0..=255"
+        reason = "the pulls add up to at most `peak`, so the difference lies in 0..=peak, within \
+                  u16"
     )]
-    fn smooth_towards(&mut self, target: i32) -> u8 {
-        let diff = (target << Q8) - self.out_q8;
-        self.out_q8 += (diff * i32::from(Self::CONFIG.smooth_q8) + Q8_HALF) >> Q8;
-        (self.out_q8 >> Q8) as u8
+    pub fn update(&mut self) -> Intensity {
+        let tuning = Self::TUNING;
+        let swell = self.swell.advance(&mut self.rng, tuning.swell.rates);
+        let sway = self.sway.advance(&mut self.rng, tuning.sway.rates);
+        let flicker = self.flicker.advance(&mut self.rng, tuning.flicker.rates);
+        let gust = self.advance_gust();
+        // Every pull is below its depth and the depths add up to at most `peak`, so this never
+        // underflows.
+        let dip = pull(tuning.swell.depth, swell)
+            + pull(tuning.sway.depth, sway)
+            + pull(tuning.flicker.depth, flicker)
+            + pull(pull(tuning.gust_depth, gust), flicker);
+        Intensity::new((tuning.peak - dip) as u16)
+    }
+
+    /// Starts a gust with the configured chance, otherwise fades the current one, and returns
+    /// the envelope.
+    fn advance_gust(&mut self) -> u16 {
+        let [roll, _] = self.rng.next_pair();
+        self.gust = if u32::from(roll) < Self::TUNING.gust_chance {
+            u16::MAX
+        } else {
+            self.gust.saturating_sub(Self::TUNING.gust_fade)
+        };
+        self.gust
     }
 }
 
-/// Maps a random byte to a jitter in `-jitter_max..=jitter_max`, rounded to nearest.
-fn jitter(random: u8, jitter_max: u8) -> i32 {
-    let noise = i32::from(random) - BYTE_CENTER;
-    (noise * (2 * i32::from(jitter_max) + 1) + Q8_HALF) >> Q8
-}
-
-/// Advances a Xorshift32 PRNG state: fast, small, and good enough for flicker.
-#[must_use]
-const fn xorshift32(mut state: u32) -> u32 {
-    state ^= state << 13_u32;
-    state ^= state >> 17_u32;
-    state ^= state << 5_u32;
-    state
+/// Returns the pull of a motion at `level`, a Q16 share of its largest pull `depth`, truncated.
+///
+/// `depth` is at most `u16::MAX`, so the product fits in `u32`, and the result is below `depth`
+/// unless both are zero.
+const fn pull(depth: u32, level: u16) -> u32 {
+    (depth * level as u32) >> Q16
 }
 
 #[cfg(test)]
 mod tests {
-    //! Behaviour of [`FireState`] under different profiles.
+    //! Behaviour of [`FireState`]: seeding, bounds, independence of channels and the pinned look.
 
-    use core::ops::RangeInclusive;
-
-    use super::{FireState, channel_seed, jitter, xorshift32};
-    use crate::config::{FireConfig, FireProfile};
+    use super::FireState;
+    use crate::config::{FireConfig, FireProfile, Gust, Layer};
+    use crate::installation::Installation;
+    use crate::intensity::Intensity;
+    use crate::rng::channel_seed;
+    use crate::test_support::{
+        Ambient, Candle, Ember, Hearth, HearthGlow, Site, Torch, autocorrelation_permille,
+        correlation_permille, fingerprint, follow, record,
+    };
 
     /// Seed of the first channel in the firmware.
     const SEED: u32 = 0xc0ff_ee01;
 
-    /// Ticks to simulate; long enough for dozens of breath cycles.
-    const TICKS: u32 = 100_000;
+    /// Ticks of a long run: 50 minutes at a 15 ms tick.
+    const LONG_RUN: usize = 200_000;
 
-    /// The baseline configuration.
+    /// Channels of a full bank.
+    const BANK: usize = 16;
+
+    /// Largest correlation between any two channels of a bank over a long run, in permille.
+    ///
+    /// The slowest roles glide for up to 10 s, so even independent channels correlate by chance
+    /// by up to about 0.1 over 50 minutes; channels in lockstep correlate by 0.65 or more.
+    const MAX_CORRELATION_PERMILLE: i64 = 150;
+
+    /// Largest mean of the absolute correlations of all channel pairs of a bank, in permille.
+    const MAX_MEAN_CORRELATION_PERMILLE: i64 = 50;
+
+    /// Ticks of the pinned runs.
+    const PINNED_RUN: usize = 100_000;
+
+    /// Distance from an end of the scale that counts as reaching it: one sixteenth of full scale.
+    const EDGE: u16 = 4_096;
+
+    /// Largest autocorrelation beyond the longest glide, in permille.
+    const MAX_AUTOCORRELATION_PERMILLE: i64 = 150;
+
+    /// Every depth at its largest, at full scale: the extreme of the bounds.
     #[derive(Clone, Copy)]
-    struct Baseline;
+    struct Extreme;
 
-    impl FireProfile for Baseline {
-        const CONFIG: FireConfig = FireConfig::new();
-    }
-
-    /// No jitter and no flares, so the output follows the breathing envelope alone.
-    struct Calm;
-
-    impl FireProfile for Calm {
+    impl FireProfile for Extreme {
         const CONFIG: FireConfig = FireConfig {
-            jitter_max: 0,
-            pulse_prob: 0,
-            ..FireConfig::new()
+            peak: Intensity::FULL,
+            swell: Layer {
+                depth_permille: 250,
+                min_ms: 30,
+                max_ms: 60,
+            },
+            sway: Layer {
+                depth_permille: 250,
+                min_ms: 30,
+                max_ms: 30,
+            },
+            flicker: Layer {
+                depth_permille: 250,
+                min_ms: 30,
+                max_ms: 45,
+            },
+            gust: Gust {
+                depth_permille: 250,
+                mean_interval_ms: 15,
+                duration_ms: 15,
+            },
         };
     }
 
-    /// Like [`Calm`], but a flare starts on almost every tick.
-    struct Flaring;
+    /// The hearth look at the faintest possible peak.
+    #[derive(Clone, Copy)]
+    struct Faint;
 
-    impl FireProfile for Flaring {
+    impl FireProfile for Faint {
         const CONFIG: FireConfig = FireConfig {
-            pulse_prob: u8::MAX,
-            ..<Calm as FireProfile>::CONFIG
+            peak: Intensity::new(1),
+            ..FireConfig::HEARTH
         };
     }
 
-    /// Sums the outputs of `ticks` updates.
-    fn output_sum<P: FireProfile>(state: &mut FireState<P>, ticks: u32) -> u64 {
-        (0..ticks).map(|_| u64::from(state.update())).sum()
+    /// The hearth look at a quarter of its peak.
+    #[derive(Clone, Copy)]
+    struct DimHearth;
+
+    impl FireProfile for DimHearth {
+        const CONFIG: FireConfig = FireConfig {
+            peak: Intensity::new(FireConfig::HEARTH.peak.get() / 4),
+            ..FireConfig::HEARTH
+        };
     }
 
-    /// Returns an order-sensitive FNV-1a fingerprint of the outputs of `ticks` updates.
-    fn output_fingerprint<P: FireProfile>(state: &mut FireState<P>, ticks: u32) -> u64 {
-        const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
-        const FNV_PRIME: u64 = 0x0100_0000_01b3;
-        (0..ticks).fold(FNV_OFFSET_BASIS, |hash, _| {
-            (hash ^ u64::from(state.update())).wrapping_mul(FNV_PRIME)
-        })
-    }
-
-    /// Returns the breathing range of the [`Calm`] profile.
-    fn calm_range() -> RangeInclusive<i32> {
-        let config = <Calm as FireProfile>::CONFIG;
-        i32::from(config.min_intensity)..=i32::from(config.max_intensity)
-    }
-
-    /// Xorshift32 matches its reference sequence and does not reach zero.
-    #[test]
-    fn xorshift_matches_reference() {
-        assert_eq!(xorshift32(1), 270_369, "first Xorshift32 value from seed 1");
-        assert_eq!(
-            xorshift32(270_369),
-            67_634_689,
-            "second Xorshift32 value from seed 1"
-        );
-        let mut state = 1_u32;
-        for _ in 0..TICKS {
-            state = xorshift32(state);
-            assert_ne!(state, 0, "Xorshift32 left its non-zero cycle");
+    /// Returns the outputs of a bank of `BANK` channels over `ticks` ticks, one series each.
+    fn record_bank<P: FireProfile + Copy>(ticks: usize) -> Vec<Vec<u16>> {
+        let mut bank: [FireState<Site, P>; BANK] = FireState::channels();
+        let mut series: Vec<Vec<u16>> = (0..BANK).map(|_| Vec::with_capacity(ticks)).collect();
+        for _ in 0..ticks {
+            for (state, outputs) in bank.iter_mut().zip(&mut series) {
+                outputs.push(state.update().get());
+            }
         }
+        series
     }
 
-    /// Jitter spans `-jitter_max..=jitter_max` symmetrically and is zero when disabled.
-    #[test]
-    fn jitter_spans_configured_amplitude() {
-        assert_eq!(jitter(0, 25), -25_i32, "lowest byte maps to -jitter_max");
-        assert_eq!(
-            jitter(u8::MAX, 25),
-            25_i32,
-            "highest byte maps to jitter_max"
-        );
-        assert_eq!(jitter(128, 25), 0_i32, "center byte maps to zero");
-        for random in 0..=u8::MAX {
-            assert_eq!(jitter(random, 0), 0_i32, "disabled jitter must stay zero");
+    /// Asserts that no two channels of a bank of `P` move together, and that the channels are
+    /// uncorrelated on average.
+    fn assert_channels_independent<P: FireProfile + Copy>(name: &str) {
+        let series = record_bank::<P>(LONG_RUN);
+        let (mut total, mut pairs) = (0_i64, 0_i64);
+        for (first, first_series) in series.iter().enumerate() {
+            for (second, second_series) in series.iter().enumerate().skip(first + 1) {
+                let correlation = correlation_permille(first_series, second_series);
+                assert!(
+                    correlation.abs() < MAX_CORRELATION_PERMILLE,
+                    "{name}: channels {first} and {second} correlate by {correlation} permille"
+                );
+                total += correlation.abs();
+                pairs += 1;
+            }
         }
+        let mean = total / pairs;
+        assert!(
+            mean < MAX_MEAN_CORRELATION_PERMILLE,
+            "{name}: channel pairs correlate by {mean} permille on average"
+        );
     }
 
-    /// Channel seeds are non-zero and distinct.
-    #[test]
-    fn channel_seeds_are_distinct_and_non_zero() {
-        let mut seeds: Vec<u32> = (0..1_024).map(channel_seed).collect();
-        assert!(!seeds.contains(&0), "a channel seed is zero");
-        seeds.sort_unstable();
-        seeds.dedup();
-        assert_eq!(seeds.len(), 1_024, "two channels share a seed");
+    /// Asserts that a channel of `P` has no period: its autocorrelation stays low at every lag
+    /// from twice its longest swell glide to 30 s, in steps of 5 ticks.
+    fn assert_no_period<P: FireProfile>(name: &str) {
+        let tick_ms = <Site as Installation>::CONFIG.tick_ms;
+        let shortest = (2 * P::CONFIG.swell.max_ms / tick_ms) as usize;
+        let longest = (30_000 / tick_ms) as usize;
+        let series = record::<P>(SEED, LONG_RUN);
+        for lag in (shortest..=longest).step_by(5) {
+            let correlation = autocorrelation_permille(&series, lag);
+            assert!(
+                correlation.abs() < MAX_AUTOCORRELATION_PERMILLE,
+                "{name}: autocorrelation at {} ms is {correlation} permille",
+                lag * tick_ms as usize
+            );
+        }
     }
 
     /// A bank of channels matches simulations created one by one from their channel seeds.
     #[test]
     fn channels_are_seeded_by_index() {
-        let mut bank: [FireState<Baseline>; 16] = const { FireState::channels() };
+        let mut bank: [FireState<Site, Hearth>; BANK] = const { FireState::channels() };
         for (channel, state) in (0_u32..).zip(&mut bank) {
-            let mut single = FireState::<Baseline>::new(channel_seed(channel));
-            for _ in 0..TICKS {
+            let mut single = FireState::<Site, Hearth>::new(channel_seed(channel));
+            for _ in 0..10_000_u32 {
                 assert_eq!(
                     state.update(),
                     single.update(),
@@ -295,93 +292,141 @@ mod tests {
     #[test]
     #[should_panic(expected = "a zero seed")]
     fn rejects_zero_seed() {
-        let _state: FireState<Baseline> = FireState::new(0);
-    }
-
-    /// The envelope stays within its bounds and reaches both of them.
-    #[test]
-    fn envelope_stays_within_bounds() {
-        let range = calm_range();
-        let mut state = FireState::<Calm>::new(SEED);
-        let (mut reached_min, mut reached_max) = (false, false);
-        for _ in 0..TICKS {
-            let base = state.advance_envelope();
-            assert!(range.contains(&base), "envelope left {range:?}: {base}");
-            reached_min |= base == *range.start();
-            reached_max |= base == *range.end();
-        }
-        assert!(
-            reached_min && reached_max,
-            "envelope must reach both bounds"
-        );
-    }
-
-    /// One envelope cycle lasts `breath_period_ms` to within one tick.
-    #[test]
-    fn envelope_period_matches_breath_period() {
-        let config = <Calm as FireProfile>::CONFIG;
-        let peak = *calm_range().end();
-        let mut state = FireState::<Calm>::new(SEED);
-        let mut peaks = (1..=TICKS).filter(|_| state.advance_envelope() == peak);
-        let first = peaks.next().expect("envelope reaches its peak");
-        let second = peaks.next().expect("envelope reaches its peak twice");
-        let period_ms = (second - first) * config.tick_ms;
-        assert!(
-            period_ms.abs_diff(config.breath_period_ms) <= config.tick_ms,
-            "breath period is {period_ms} ms, expected {} ms",
-            config.breath_period_ms
-        );
-    }
-
-    /// Without noise the smoothed output never leaves the envelope range.
-    #[test]
-    fn calm_output_stays_within_envelope() {
-        let range = calm_range();
-        let mut state = FireState::<Calm>::new(SEED);
-        for _ in 0..TICKS {
-            let output = i32::from(state.update());
-            assert!(range.contains(&output), "output left {range:?}: {output}");
-        }
+        let _state: FireState<Site, Hearth> = FireState::new(0);
     }
 
     /// The same seed reproduces the same flicker, different seeds diverge.
     #[test]
     fn seeds_determine_the_sequence() {
-        let mut first = FireState::<Baseline>::new(SEED);
-        let mut again = FireState::<Baseline>::new(SEED);
-        let mut other = FireState::<Baseline>::new(0x1234_5678);
-        let mut diverged = false;
-        for _ in 0..TICKS {
-            let output = first.update();
-            assert_eq!(output, again.update(), "equal seeds must give equal output");
-            diverged |= output != other.update();
-        }
-        assert!(diverged, "different seeds must give different output");
-    }
-
-    /// Flares raise the average brightness.
-    #[test]
-    fn flares_raise_brightness() {
-        let calm = output_sum(&mut FireState::<Calm>::new(SEED), TICKS);
-        let flaring = output_sum(&mut FireState::<Flaring>::new(SEED), TICKS);
-        assert!(
-            flaring > calm,
-            "flares must brighten the fire: {flaring} <= {calm}"
+        let first = record::<Hearth>(SEED, 10_000);
+        assert_eq!(
+            first,
+            record::<Hearth>(SEED, 10_000),
+            "equal seeds must give equal output"
+        );
+        assert_ne!(
+            first,
+            record::<Hearth>(0x1234_5678, 10_000),
+            "different seeds must give different output"
         );
     }
 
-    /// The baseline flicker is unchanged; update the values only for intended changes to the look.
+    /// With depths of 1000 permille at full scale, the output reaches close to both ends of the
+    /// scale without overflowing.
+    #[test]
+    fn extreme_depths_stay_within_the_scale() {
+        let outputs = record::<Extreme>(SEED, LONG_RUN);
+        let lowest = outputs.iter().min().copied();
+        let highest = outputs.iter().max().copied();
+        assert!(
+            lowest < Some(EDGE),
+            "the extreme look never got dark: {lowest:?}"
+        );
+        assert!(
+            highest > Some(u16::MAX - EDGE),
+            "the extreme look never got bright: {highest:?}"
+        );
+    }
+
+    /// The faintest peak of one step is never exceeded.
+    #[test]
+    fn faint_peak_is_never_exceeded() {
+        let outputs = record::<Faint>(SEED, LONG_RUN);
+        assert!(
+            outputs.iter().all(|&output| output <= 1),
+            "a peak of 1 was exceeded"
+        );
+    }
+
+    /// Changing the peak scales the light without changing its motion: the same seed gives the
+    /// same flicker, scaled to within the rounding of the four pulls.
+    #[test]
+    fn peak_scales_without_changing_the_motion() {
+        let bright = record::<Hearth>(SEED, LONG_RUN);
+        let dim = record::<DimHearth>(SEED, LONG_RUN);
+        let bright_peak = u64::from(FireConfig::HEARTH.peak.get());
+        let dim_peak = u64::from(<DimHearth as FireProfile>::CONFIG.peak.get());
+        // Each of the four pulls and the four depths rounds by less than one step.
+        let tolerance = 8 * (bright_peak + dim_peak);
+        for (tick, (&high, &low)) in bright.iter().zip(&dim).enumerate() {
+            let deviation = (u64::from(high) * dim_peak).abs_diff(u64::from(low) * bright_peak);
+            assert!(
+                deviation <= tolerance,
+                "tick {tick}: {high} at peak {bright_peak} and {low} at peak {dim_peak} differ in \
+                 shape"
+            );
+        }
+    }
+
+    /// No two channels of a bank move together, for any role.
+    #[test]
+    fn channels_are_independent() {
+        assert_channels_independent::<Hearth>("hearth");
+        assert_channels_independent::<Torch>("torch");
+        assert_channels_independent::<Candle>("candle");
+        assert_channels_independent::<Ember>("ember");
+        assert_channels_independent::<Ambient>("ambient");
+    }
+
+    /// No role has a dominant period.
+    #[test]
+    fn roles_have_no_period() {
+        assert_no_period::<Hearth>("hearth");
+        assert_no_period::<Torch>("torch");
+        assert_no_period::<Candle>("candle");
+        assert_no_period::<Ember>("ember");
+        assert_no_period::<Ambient>("ambient");
+    }
+
+    /// The look of every preset is unchanged; update the values only for intended changes to the
+    /// look.
+    ///
+    /// Each preset is pinned by the sum of its outputs (its average brightness) and an
+    /// order-sensitive fingerprint (its motion); the hearth glow follows the hearth.
     #[test]
     fn baseline_output_is_stable() {
-        let sum = output_sum(&mut FireState::<Baseline>::new(SEED), TICKS);
-        assert_eq!(
-            sum, 13_945_072,
-            "average brightness of the baseline flicker changed"
-        );
-        let fingerprint = output_fingerprint(&mut FireState::<Baseline>::new(SEED), TICKS);
-        assert_eq!(
-            fingerprint, 0x7702_a701_be67_ba17,
-            "baseline flicker changed"
-        );
+        let pins = [
+            (
+                "hearth",
+                record::<Hearth>(SEED, PINNED_RUN),
+                3_735_887_954,
+                0x91c1_057e_43f0_56a5,
+            ),
+            (
+                "torch",
+                record::<Torch>(SEED, PINNED_RUN),
+                3_777_922_164,
+                0x00c2_0dac_f60e_4f21,
+            ),
+            (
+                "candle",
+                record::<Candle>(SEED, PINNED_RUN),
+                3_127_402_344,
+                0x558a_812e_103a_c6b9,
+            ),
+            (
+                "ember",
+                record::<Ember>(SEED, PINNED_RUN),
+                2_333_883_063,
+                0x9b3f_25ce_5636_2a50,
+            ),
+            (
+                "ambient",
+                record::<Ambient>(SEED, PINNED_RUN),
+                1_597_073_837,
+                0xf934_c33e_ecbf_c38a,
+            ),
+            (
+                "hearth glow",
+                follow::<HearthGlow>(SEED, PINNED_RUN).1,
+                2_631_991_342,
+                0x2e32_8f03_cf8e_9123,
+            ),
+        ];
+        for (name, outputs, sum, print) in pins {
+            let actual_sum: u64 = outputs.iter().map(|&output| u64::from(output)).sum();
+            assert_eq!(actual_sum, sum, "average brightness of the {name} changed");
+            assert_eq!(fingerprint(&outputs), print, "the {name} flicker changed");
+        }
     }
 }

@@ -10,9 +10,12 @@
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-3.0-ff69b4.svg)](CODE_OF_CONDUCT.md)
 
 Blaustein LED is the firmware for the campfire lights of Burg Blaustein: a smooth, configurable
-flicker on up to sixteen LEDs, driven by a Raspberry Pi Pico 2 (RP2350). Each LED runs its own simulation
-with its own seed, so the flames never move in lockstep, and a watchdog brings the effect back on
-its own if it ever stops.
+flicker on up to sixteen LEDs, driven by a Raspberry Pi Pico 2 (RP2350). A channel table assigns
+every LED a light role (hearth, torch, candle, ember, ambient light) or lets it follow another
+channel, and trims it to its LED. Each LED runs its own simulation with its own seed; its motions
+have no fixed period and no phase shared with another LED, so the flames never move in lockstep.
+After power-on the lights come up one after another, and every power-on looks different. A
+watchdog brings the effect back on its own if it ever stops.
 
 The current release is **[2.0.0](https://github.com/greluc/blaustein-led/releases/tag/v2.0.0)**.
 Blaustein LED is written in Rust with [Embassy](https://embassy.dev) and licensed under either of
@@ -21,82 +24,194 @@ The source lives at [github.com/greluc/blaustein-led](https://github.com/greluc/
 
 ## What it does
 
-- **Flame.** A slow triangular "breathing" envelope, per-tick random jitter, sporadic flares that
-  decay exponentially, and an output EMA that smooths it all, mapped through a square-law gamma
-  curve to 25 kHz PWM.
+- **Flame.** Three layers of smoothly interpolated value noise pull the light below its peak: a
+  slow swell, a faster sway and a fast flicker. Each layer glides to a new random level after a
+  random time from its configured range, easing in and out, so nothing repeats and no two LEDs
+  share a phase. Occasional gusts deepen the flicker for a moment. The result is a 16-bit
+  perceived intensity, mapped through a square-law gamma curve to 25 kHz PWM.
+- **Light roles.** Presets for a hearth, a torch, a candle, embers and ambient room light, and a
+  follower for a second light driven by another channel, such as the red glow of the embers under
+  a fireplace flame. One parameter, `peak`, bounds the brightness of a role without changing how it
+  moves.
+- **Channel table.** One line per LED assigns its role or the channel it follows, and a trim that
+  evens out LEDs of the same type without touching the role. The installed table is the plan of
+  the first controller in [docs/lighting-plan.md](docs/lighting-plan.md).
+- **Staggered ignition.** After power-on every channel stays dark until its turn and then fades
+  in, about 400 ms after the one before it, within 2 s. A follower lights after its flame.
+- **Different at every power-on.** 32 random bits from the ring oscillator of the RP2350 are mixed
+  into the seeds at boot. The read is bounded and cannot fail; every value gives valid seeds.
+- **Staggered PWM phases.** The PWM slices start together, with their counters spread evenly over
+  the period, so the LEDs do not all switch on at the same instant.
+- **Identify build.** With the `identify` feature every LED blinks its channel number counted
+  from 1, so thin wires can be matched to channels during the installation.
+- **USB update.** With the `usb-update` feature a computer with picotool on the USB lead reboots
+  the running firmware into the USB bootloader and flashes it, so a Pico buried in the model needs
+  no BOOTSEL button. Without a computer on the lead nothing changes.
 - **One to sixteen channels, one task.** GPIO 7 to GPIO 22 reach all sixteen PWM outputs of the
-  Pico 2, each with its own flame. `CHANNELS` sets how many are in use; only those get a
-  simulation, a PWM slice and RAM. One task and one `Ticker` drive them all, so the cadence never
-  drifts.
+  Pico 2, each with its own light. The number of entries in the channel table sets how many are in
+  use; only those get a simulation, a PWM slice and RAM. One task and one `Ticker` drive them all,
+  so the cadence never drifts.
 - **Integer only.** No floating point and no allocation. The configuration is a compile-time
-  constant, so every derived value folds into the binary. The release image uses about 4.1 KB of
-  flash and 464 bytes of static RAM for one LED, and 5.1 KB and 880 bytes for sixteen.
-- **Unattended.** In deployed builds a panic resets the chip instead of halting, and a watchdog
-  resets it if the effect stops updating. Invalid configurations fail the build.
+  constant, so every derived value folds into the binary. A channel needs 36 bytes of RAM. The
+  release image uses about 5.2 KB of flash and 472 bytes of static RAM for one LED, and 6.4 KB and
+  1032 bytes for the installed fourteen; the identify build 4.5 KB and 528 bytes for fourteen.
+- **Unattended.** In deployed builds a panic resets the chip instead of halting, and a watchdog,
+  started right after the clocks are set up, resets it if anything stops the effect. Nothing writes to flash, so
+  cutting the power is safe. Invalid configurations fail the build.
 
 ## Hardware
 
 - Board: Raspberry Pi Pico 2 (RP2350A).
-- LEDs: orange LEDs look best; any LED works.
+- LEDs: amber or orange for flames, red for embers, warm white for candles and room light.
 - Pins: GPIO 7 to GPIO 22, one LED each. GPIO `n` is PWM channel `n mod 16`, so this block uses
-  every PWM output of the RP2350A exactly once. `CHANNELS` LEDs are used in the order GPIO 16 to
-  GPIO 22, then GPIO 7 to GPIO 15 (slice by slice, A before B):
+  every PWM output of the RP2350A exactly once. The entries of the channel table take the pins in
+  the order GPIO 16 to GPIO 22, then GPIO 7 to GPIO 15 (slice by slice, A before B):
 
   | PWM slice | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
   | --- | --- | --- | --- | --- | --- | --- | --- | --- |
   | Channel A | GPIO 16 | GPIO 18 | GPIO 20 | GPIO 22 | GPIO 8 | GPIO 10 | GPIO 12 | GPIO 14 |
   | Channel B | GPIO 17 | GPIO 19 | GPIO 21 | GPIO 7 | GPIO 9 | GPIO 11 | GPIO 13 | GPIO 15 |
 
-- Wiring per channel: GPIO → series resistor (330 Ω to 1 kΩ) → LED anode; LED cathode → GND.
+- Wiring per channel on a test bench: GPIO → series resistor → LED anode; LED cathode → GND. Start
+  with about 1 kΩ for amber, orange and red.
 
-Use a series resistor on every channel. The firmware assumes active-high LEDs. A GPIO drives only
-a few milliamperes, and the sum over all pins is limited as well; with more than a handful of LEDs,
-or for brighter ones, switch each LED through a small NPN transistor or N-channel MOSFET (or use an
-LED driver) and feed it from the 5 V or 3.3 V supply instead of the pin.
+Use a series resistor on every channel. The firmware assumes active-high LEDs. A pin of the RP2350
+resets to a drive strength of 4 mA, and all pins together may source 100 mA. A warm white LED needs
+typically 2.7 V and up to 3.3 V, which leaves a 3.3 V pin almost no headroom.
+
+The installation in the castle therefore does not hang its LEDs on the pins. It drives every
+channel through a buffer on 5 V. It is planned with one Raspberry Pi Pico 2 W per zone of the
+castle, three in all, fed by a single power lead; the firmware support for several controllers and
+for an update over the radio is still to come.
+[docs/hardware.md](docs/hardware.md) holds the electrical design, the power supply and the
+installation in the model; [docs/lighting-plan.md](docs/lighting-plan.md) holds the lighting
+concept and the channel plan.
 
 ## Configuration
 
-The parameters are the fields of `FireConfig` in
-[`fire-effect/src/config.rs`](fire-effect/src/config.rs); the installed values are the `CFG`
-constant in [`src/config.rs`](src/config.rs). The baseline (`FireConfig::new()`) is tuned for a
-smooth, warm indoor campfire.
+The installed values live in [`src/config.rs`](src/config.rs). The types are defined in
+[`fire-effect/src/installation.rs`](fire-effect/src/installation.rs),
+[`fire-effect/src/lighting.rs`](fire-effect/src/lighting.rs),
+[`fire-effect/src/channel.rs`](fire-effect/src/channel.rs),
+[`fire-effect/src/config.rs`](fire-effect/src/config.rs),
+[`fire-effect/src/follower.rs`](fire-effect/src/follower.rs) and
+[`fire-effect/src/ignition.rs`](fire-effect/src/ignition.rs); the presets in
+[`fire-effect/src/roles.rs`](fire-effect/src/roles.rs). Everything is a compile-time constant, and
+an invalid value fails the build with an explanatory message instead of producing dead firmware.
+
+`INSTALLATION` holds what every LED shares, so two roles cannot disagree on it:
 
 | Parameter | Type | Meaning |
 | --- | --- | --- |
 | `pwm_freq_hz` | `u32` | PWM frequency. 20 to 30 kHz keeps PWM inaudible and flicker-free. |
 | `pwm_divider` | `u8` | PWM clock divider, at least 1. Use the smallest value that keeps `top` within `u16`. |
-| `min_intensity` / `max_intensity` | `u8` | Breathing range (0..=255); `max_intensity` must be greater. Raise `min_intensity` if the LED is too dim. |
-| `breath_period_ms` | `u32` | One full up and down cycle of the breathing, at least one tick. 3 to 5 s feels natural. |
-| `jitter_max` | `u8` | Random per-tick jitter around the breathing (0..=64 typical). Larger looks more chaotic. |
-| `pulse_prob` | `u8` | Chance per tick (0..=255) of a short flare. 2 to 5 is subtle (about 1 %); 48 is about 19 %, a busy fire. |
-| `pulse_boost` | `u8` | Intensity a flare adds. |
-| `pulse_decay_q8` | `u8` | Q8 decay factor of a flare per tick. 224 decays fast, 248 slower. |
-| `smooth_q8` | `u8` | Q8 smoothing factor of the output, at least 1. Smaller is smoother and slower to react. |
-| `tick_ms` | `u32` | Update interval in milliseconds. 10 to 20 ms works well. |
+| `tick_ms` | `u32` | Update interval in milliseconds. 10 to 20 ms works well; the presets need at most 20. |
 
-Set the number of LEDs with `CHANNELS` (1 to 16) in the same file. One LED uses GPIO 16, three use
-GPIO 16 to 18, sixteen use GPIO 7 to 22; a value outside 1 to 16 fails the build:
+`LIGHTING` holds the lights:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `hearth`, `torch`, `candle`, `ember`, `ambient` | `FireConfig` | The look of every channel of that role. Every look is checked, also one no channel uses. |
+| `glow` | `FollowerConfig` | The follower of every `Light::Follows` channel. |
+| `ignition` | `IgnitionConfig` | How the channels light after power-on. |
+| `channels` | `&[Channel]` | The channel table, one entry per LED. |
+
+### Channel table
+
+Each entry is `Channel::new(light, trim_permille)`, in the pin order of the table under
+[Hardware](#hardware): the first entry drives GPIO 16, the eighth GPIO 7. The number of entries
+(1 to 16) is the number of LEDs in use. Changing a channel is a one-line edit:
 
 ```rust
-pub const CHANNELS: usize = 3;
+channels: &[
+    Channel::new(Light::Hearth, 1_000),     // 0, GPIO 16: base castle, kitchen, cooking fire
+    Channel::new(Light::Follows(0), 1_000), // 1, GPIO 17: base castle, kitchen, its embers
+    Channel::new(Light::Hearth, 1_000),     // 2, GPIO 18: base castle, hall, fireplace flame
+    Channel::new(Light::Follows(2), 1_000), // 3, GPIO 19: base castle, hall, its embers
+    Channel::new(Light::Candle, 800),       // 4, GPIO 20: base castle, candles, bright LEDs
+    // ...
+],
 ```
 
-To change the look, edit `CFG`:
+- **Role.** `Light::Hearth`, `Light::Torch`, `Light::Candle`, `Light::Ember` or `Light::Ambient`
+  runs that role's look with the channel's own seed.
+- **Follower.** `Light::Follows(n)` runs `glow` on the output of channel `n`, such as the red embers
+  under a fireplace flame. Channel `n` must come earlier in the table and must not be a follower
+  itself.
+- **Trim.** `trim_permille` evens out LEDs of the same type: 1000 shows the role as configured,
+  lower values dim the LED without changing how it moves. It scales the intensity, so 500 looks
+  about half as bright. A trim only dims; for more light on every LED of a role, raise its `peak`.
+  The trim of a flame does not reach its follower.
+
+The installed table is the plan of the first controller in
+[docs/lighting-plan.md](docs/lighting-plan.md), fourteen channels for the base castle, the keep and
+the Vorburg: hearths on channels 0, 2 and 5 with the glow of their embers on 1, 3 and 6, candles
+on 4, 7 and 10 and torches on 8, 9, 11, 12 and 13, all at a trim of 1000. The tables of the other
+controllers follow with the firmware support for several controllers. An entry that follows itself, a later channel, a follower or a channel beyond the table, a
+trim of 0 or above 1000, or an empty table fails the build, for example with
+`a channel can only follow an earlier channel, which is updated before it within a tick`.
+
+### Looks
+
+A `FireConfig` is the look of a light role. Its output never exceeds `peak` and never falls below
+`peak × (1000 − total depth) / 1000`, where the total depth is the sum of the four depths. Because
+every depth is a share of `peak`, changing `peak` makes the light brighter or dimmer without
+changing how it moves:
+
+| Parameter | Type | Meaning |
+| --- | --- | --- |
+| `peak` | `Intensity` | The highest intensity the light ever reaches, for example `Intensity::from_permille(600)` for 60 % of full scale. The only bound of the brightness. |
+| `swell`, `sway`, `flicker` | `Layer` | Three layers of value noise, from slow to fast. |
+| `depth_permille` | `u16` | Of a layer: how far it pulls the light below `peak` at most, in thousandths of `peak`. 0 switches it off (`Layer::OFF`). |
+| `min_ms` / `max_ms` | `u32` | Of a layer: shortest and longest glide to the next random level. `min_ms` spans at least two ticks. |
+| `gust` | `Gust` | Occasional gusts that deepen the flicker; they follow the timing of `flicker`. `Gust::OFF` switches them off. |
+| `depth_permille` | `u16` | Of a gust: extra pull at its start in thousandths of `peak`. The four depths add up to at most 1000. |
+| `mean_interval_ms` | `u32` | Of a gust: mean time between two gusts. |
+| `duration_ms` | `u32` | Of a gust: time in which it fades out. |
+
+The presets are starting points tuned in a host simulation; adjust them on the real model:
+
+| Preset | Light | Peak | Look |
+| --- | --- | --- | --- |
+| `FireConfig::HEARTH` | Fireplace, cooking fire | 90 % | Irregular swell over 1 to 3 s, lively flicker, a gust every 8 s. |
+| `FireConfig::TORCH` | Torch | 75 % | Fast and restless, small swing, a strong gust every 6 s. |
+| `FireConfig::CANDLE` | Candle, oil lamp | 50 % | Almost steady, a short twitch every 20 s. |
+| `FireConfig::EMBER` | Embers, forge | 40 % | Very slow, small swing, no fast flicker. |
+| `FireConfig::AMBIENT` | Room light | 25 % | Constant dim level with about 5 % of unrest. |
+
+To change a look, pick another preset or override fields of one with struct update syntax; the
+change applies to every channel of that role (import `Gust` and `Intensity` from `fire_effect`):
 
 ```rust
-pub const CFG: FireConfig = FireConfig {
-    min_intensity: 16,
-    max_intensity: 255,
-    breath_period_ms: 4_000,
-    jitter_max: 22,
-    pulse_prob: 4,
-    pulse_boost: 50,
-    ..FireConfig::new()
-};
+candle: FireConfig {
+    peak: Intensity::from_permille(400),
+    gust: Gust::OFF,
+    ..FireConfig::CANDLE
+},
 ```
 
-An invalid combination, for example a `breath_period_ms` so long that the envelope step truncates
-to zero, fails the build with an explanatory message instead of producing dead firmware.
+A `FollowerConfig` drives a light from another channel: it smooths the source's intensity with a
+time constant of `smoothing_ms` and outputs `floor + smoothed × gain_permille / 1000`, saturating
+at full scale. `FollowerConfig::HEARTH_GLOW` is the red glow of the embers under a hearth flame.
+
+An invalid combination, for example depths that add up to more than 1000 permille or a glide
+shorter than two ticks, fails the build with a message such as
+`sway.min_ms must span at least two ticks, or the layer jumps instead of gliding`.
+
+### Ignition
+
+After power-on, channel `n` (counted from 0) stays dark for `n × delay_ms` and then fades in
+linearly within `fade_ms`. Both are rounded down to whole ticks; `delay_ms: 0` lights every
+channel at once. A follower comes after its flame in the table, so it never glows before the
+flame, and it is fed the flame as it lights, so the embers heat up with it.
+
+| Parameter | Type | Installed | Meaning |
+| --- | --- | --- | --- |
+| `delay_ms` | `u32` | 400 | Time from the start of one channel to the start of the next. |
+| `fade_ms` | `u32` | 2000 | Time in which a channel fades in from dark, at least one tick and at most 65,536 ticks. |
+
+At the 15 ms tick the installed values round to 390 ms and 1995 ms, so with the installed fourteen
+channels the last one starts after about 5 s and is fully lit after about 7 s.
 
 ## Build and flash
 
@@ -104,7 +219,8 @@ Requires [rustup](https://rustup.rs) and, to flash, [picotool](https://github.co
 on your `PATH`. `rust-toolchain.toml` selects the stable toolchain (1.99.1 or newer) and installs
 the `thumbv8m.main-none-eabihf` target on first use.
 
-1. Hold BOOTSEL while plugging in the Pico 2.
+1. Hold BOOTSEL while plugging in the Pico 2. Once a build with the `usb-update` feature runs on
+   it, later updates need no button, see [USB update](#usb-update).
 2. Build and flash in one step: `cargo run --release`.
 
 `cargo run` uses the `picotool` runner from [`.cargo/config.toml`](.cargo/config.toml). To flash by
@@ -115,17 +231,78 @@ run also uploads that image as the `blaustein-led-elf` artifact.
 | Profile | Command | Purpose |
 | --- | --- | --- |
 | `release` | `cargo build --release` | Deployment. No defmt stack; a panic resets the board so the installation recovers unattended. |
+| `release` with `identify` | `cargo build --release --features identify` | Installation aid, see [Identify build](#identify-build). |
+| `release` with `usb-update` | `cargo build --release --features usb-update` | Deployment that picotool can update over the USB lead, see [USB update](#usb-update). Combines with `identify` and with `debug`. |
 | `release-debug` | `cargo build --profile release-debug --features debug` | Optimised build that keeps the symbol table defmt needs to decode RTT output. A panic halts for an attached debugger. |
 | `dev` | `cargo build` | `opt-level = 1`, full debug info. |
 
 Set the log level of `debug` builds with `DEFMT_LOG` (default `info`, set in `.cargo/config.toml`).
+
+### Identify build
+
+`cargo run --release --features identify` flashes an installation aid instead of the fire: every
+LED blinks its position in the channel table counted from 1, so a wire can be matched to its
+channel. The table and the channel plan count from 0, so channel 0 (GPIO 16) flashes once and the
+last installed channel, 13 (GPIO 13), fourteen times. All channels start together, each flash lasts 150 ms with
+250 ms of dark in between, and after the flashes of the last channel all LEDs stay dark for 2 s
+before the pattern repeats. Flashes are at full scale and ignore the trim.
+The watchdog and the resetting panic handler work as in the default build, and `picotool info`
+shows the build by its program description. Flash the default build again when the wiring is
+done.
+
+### USB update
+
+`cargo build --release --features usb-update` builds the fire with a small USB device next to it:
+one vendor-specific interface without endpoints, the reset interface that picotool uses to reboot
+a running Pico into its USB bootloader. The lights, the watchdog and the resetting panic handler
+work as in the default build. The device only answers a computer; on a plain USB charger it waits
+for one and the lights run exactly as without the feature. The lead must carry the data lines.
+
+The interface and the commands below were checked against the Pico SDK 2.3.1 and picotool 2.3.1,
+see [docs/lighting-plan.md](docs/lighting-plan.md#firmware). The procedure has **not been tried on
+hardware** yet.
+
+1. Flash a build with the feature once the usual way, with the BOOTSEL button.
+2. For every later update, connect a computer with picotool to the lead and run:
+
+   ```bash
+   cargo build --release --features usb-update
+   picotool reboot -f -u
+   picotool load -x -t elf target/thumbv8m.main-none-eabihf/release/blaustein-led
+   ```
+
+   `picotool reboot -f -u` asks the running firmware to reboot into the USB bootloader; the lights
+   go dark. `picotool load -x` then flashes the new image and starts it. On Linux and macOS,
+   `picotool load -f -x -t elf <image>` is documented to do both in one step.
+
+Every build that goes into the buried Pico has to include the feature, the identify build too
+(`cargo build --release --features identify,usb-update`); otherwise the next update needs the
+BOOTSEL button again.
+
+- **Identity.** The device reports Raspberry Pi's vendor ID `2e8a` with product ID `0009`, the
+  IDs picotool looks for, and the product name `Blaustein Fire LED`.
+- **Windows.** Microsoft OS 2.0 descriptors ask Windows 8.1 or later to bind its WinUSB driver to
+  the device, so picotool reaches it without Zadig or an INF file.
+- **Linux.** picotool needs access to the USB device: a udev rule for vendor `2e8a` with the
+  products `0009`, the running firmware, and `000f`, the bootloader it reboots into, or `sudo`.
+- **macOS.** Nothing to set up.
+- **Requests.** The firmware only offers the reboot into the bootloader and rejects every other
+  request. Of the options a computer can send with it, it keeps the two that switch the mass
+  storage or the PICOBOOT interface of the bootloader off, and ignores an activity LED.
+- **Security.** Any USB host on the lead can reboot the Pico into its bootloader and replace the
+  firmware; there is no authentication. A host that only reboots it leaves the lights dark until
+  the firmware is flashed again or the power is cut and restored; the reboot does not touch the
+  flash, so the installed firmware starts again after the power cycle.
+- **Size.** The feature adds embassy-usb. With the installed fourteen channels the release image
+  uses about 15.7 KB of flash and 2424 bytes of static RAM, the identify build with the feature
+  14.0 KB and 1920 bytes; the build without the feature is unchanged.
 
 ## Development
 
 | Step | Command |
 | --- | --- |
 | Format | `cargo +nightly fmt --all` |
-| Lint the firmware | `cargo clippy --release` and `cargo clippy --profile release-debug --features debug` |
+| Lint the firmware | `cargo clippy --release`, `cargo clippy --release --features identify`, `cargo clippy --release --features usb-update`, `cargo clippy --release --features identify,usb-update`, `cargo clippy --profile release-debug --features debug` and `cargo clippy --profile release-debug --features debug,usb-update` |
 | Lint the effect crate and its tests | `cargo clippy-host` |
 | Test | `cargo test-host` |
 | Check dependencies | `cargo deny check` |
@@ -139,9 +316,12 @@ the code itself builds on stable. CI runs all of the above on every pull request
 
 | Path | Content |
 | --- | --- |
-| [`fire-effect/`](fire-effect/) | The flicker simulation, gamma curve and PWM timing. No hardware dependencies, so its tests run on the host (`cargo test-host`, an alias for `cargo test --package fire-effect --target host-tuple`). |
-| [`src/main.rs`](src/main.rs) | The firmware: wires the simulation to the PWM slices, the watchdog and the panic handler. |
-| [`src/config.rs`](src/config.rs) | The installed `CFG`. |
+| [`fire-effect/`](fire-effect/) | The flicker simulation, the light-role presets, the follower, the channel table and its validation, the ignition, the identify pattern, the seed mixing, the gamma curve, PWM timing and slice phases, and the decoding of the picotool reset request. No hardware dependencies, so its tests run on the host (`cargo test-host`, an alias for `cargo test --package fire-effect --target host-tuple`). |
+| [`src/main.rs`](src/main.rs) | The firmware: wires the pins to the PWM slices, the watchdog, the panic handler and the task that shows the effect, and spawns the USB task of the `usb-update` feature. |
+| [`src/config.rs`](src/config.rs) | The installed `INSTALLATION` and `LIGHTING` with the channel table; `CHANNELS` follows from the table. |
+| [`src/outputs.rs`](src/outputs.rs) | The PWM slices: routing, staggered phases and the duty values of every tick. |
+| [`src/effect.rs`](src/effect.rs) | The effect of the build: the fire, seeded from the ring oscillator, or the identify pattern. |
+| [`src/usb_update.rs`](src/usb_update.rs) | The `usb-update` feature: the USB device with the reset interface of picotool and the reboot into the USB bootloader. |
 | [`memory.x`](memory.x), [`build.rs`](build.rs) | Memory layout of the RP2350 and the linker setup. |
 | [`.github/`](.github/) | CI, repository gates, Dependabot, issue and pull request templates, security policy. |
 | [`docs/design/`](docs/design/) | The logo (`logo.svg`) and the GitHub social preview (`social-preview.svg`, rendered to `social-preview.png`). |
@@ -150,6 +330,14 @@ the code itself builds on stable. CI runs all of the above on every pull request
 
 | Topic | Document |
 | --- | --- |
+| Decisions, lighting concept, channel plan, stages and the steps to build it | [docs/lighting-plan.md](docs/lighting-plan.md) |
+| Controllers, driver stage, power, connectors, work on the bricks and installation | [docs/hardware.md](docs/hardware.md) |
+| Parts with articles and prices, and the orders by stage | [docs/bill-of-materials.md](docs/bill-of-materials.md) |
+| The sets: light points, joints and cavities | [docs/model.md](docs/model.md) |
+| How brick models are lit, and the comparison of architectures | [docs/lighting-practice.md](docs/lighting-practice.md) |
+| Printed parts and their test plan | [docs/printed-parts.md](docs/printed-parts.md) |
+| Every source, and what stays unverified | [docs/sources.md](docs/sources.md) |
+| The research brief and what became of it | [docs/research-brief.md](docs/research-brief.md) |
 | Contributing, checks and commit rules | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | Reporting a vulnerability | [.github/SECURITY.md](.github/SECURITY.md) |
 | Code of Conduct | [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) |
