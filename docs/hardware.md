@@ -259,23 +259,27 @@ its board when its stage comes.
 
 ## Working on the bricks
 
-Where a brick has to change for the lighting, the owner set an order of preference:
+Where a brick has to change for the lighting, the owner set these rules:
 
-1. **A brick that cannot be seen is replaced by a printed one.** The brick with the passage, the
-   seat or the pocket already in it comes from the filament printer, see
-   [printed-parts.md](printed-parts.md). The original stays whole and is kept, so nothing has to be
-   bought and the model can go back to its original state.
-2. **A brick that can be seen stays an original and is worked on.** A print matches neither the
-   colour nor the gloss of the set. A visible brick may be drilled, cut and glued where it serves
-   the lighting, on one condition: a matching replacement brick is ordered first.
-3. **A shape the filament printer cannot make so that it clamps,** such as a 1×1 plate, is treated
-   like a visible brick.
+1. **The original brick is worked on.** It may be drilled, cut and glued where it serves the
+   lighting, on one condition: a replacement brick is ordered first. The replacement of a brick
+   that cannot be seen need not match in colour, only in shape and clutch.
+2. **A printed part is the exception.** It is used only where it cannot be seen and a print is
+   really worth it; both have to hold. A print is worth it for
+   - a part that does not exist as a brick, such as the carrier of a board or the mount of the
+     socket of the power lead;
+   - a shape that cannot be made in an original without cutting away what clamps, such as the
+     pocket for a floor connector or a duct for several wires along a brick.
 
-A brick counts as visible when any face of it shows in the finished model, from outside or in a
-room that opens. In doubt it is visible. Which bricks are hidden is decided on the model; the
+   A plain hole for a wire or an LED is drilled, not printed: it takes minutes, while a print
+   needs a model, a calibration and a test first, see [printed-parts.md](printed-parts.md).
+3. **Nothing printed is visible.** A print matches neither the colour nor the gloss of the set.
+
+A part counts as visible when any face of it shows in the finished model, from outside or in a
+room that opens. In doubt it is visible. Which places are hidden is decided on the model; the
 instructions do not show it reliably.
 
-### Replacement bricks for the visible ones
+### Replacement bricks first
 
 - BlueBrixx sells no single bricks. Its spare-part service replaces missing and defective parts
   against the invoice and orders each from the maker, with three to eight weeks of delivery; a brick
@@ -288,29 +292,28 @@ instructions do not show it reliably.
   oranges.
 - Who makes the Part Packs is not stated, and whether their colour and clutch match the sets is
   unverified. Two or three bags are bought and compared with the set in daylight before the rest.
-  If the greys differ visibly, they serve for practice, and the replacement of a visible brick has
-  to come from a second copy of its set.
+  If the greys differ visibly, they serve for hidden bricks and for practice, and the replacement
+  of a visible brick has to come from a second copy of its set.
 - The only guaranteed match is a second copy of a set. The tiles of the mantel in the hall that
   carry a pattern have no other source and stay untouched.
 
 ### What is done, in the order of its benefit
 
-| Measure | In a hidden brick: printed | In a visible brick: the original | Risk |
+| Measure | How, on the original | Printed instead | Risk |
 | --- | --- | --- | --- |
-| A seat for each LED, so the LED sits under or behind the transparent part of a fire or a candle | A printed carrier with the seat in it. A hole that prints too tight is opened with the pin vice | A hole of 1.2 mm to 1.5 mm through the part that carries the fire or the candle | Small. The carriers are cheap bricks |
-| Passages for wires | A printed brick or plate with a duct in its roof or a notch in a side wall, so the tubes that clamp stay whole | A hole of 1 mm: through the centre of a stud from inside, where the dimple of the mould centres the drill; through a side wall midway between two studs; through a plate between its tubes. Never through a tube, a pin or a wall at a stud, which are the surfaces that clamp | Printed: a clutch that is too weak or too tight. Drilled: a drill that wanders or breaks, a misplaced hole |
-| A seat for a floor connector | A printed brick with a pocket, so a bought magnetic pair sits flush | A pocket cut into a brick at the top of a wall and into the part above it | Medium. The connector must let go with less force than its brick clamps |
-| Glue | | Only to lock an LED in its seat. A glue that washes off where a weak hold is enough; clear epoxy for an LED potted into a spare brick | Solvent cement marks the plastic. Cyanoacrylate fogs transparent parts and cannot be removed without attacking the plastic, so it stays away from the fires and the windows |
-| Room for a board | Leaving out hidden bricks, not cutting the base; a printed carrier holds the board | | The base carries the rock panels and the foundation of the keep; which bricks are free shows on the model |
+| A seat for each LED | A hole of 1.2 mm to 1.5 mm through the part that carries a fire or a candle, so the LED sits under or behind the transparent part | No | Small. The carriers are cheap bricks |
+| Passages for wires | A hole of 1 mm: through the centre of a stud from inside, where the dimple of the mould centres the drill; through a side wall midway between two studs; through a plate between its tubes. Never through a tube, a pin or a wall at a stud, which are the surfaces that clamp | Only a duct for several wires along a hidden brick, which a drill cannot make | A drill that wanders or breaks; a misplaced hole |
+| A seat for a floor connector | A pocket cut into a brick at the top of a wall and into the part above it, so a bought magnetic pair sits flush | Yes, where the brick is hidden: the pocket cuts away walls that clamp | Medium. The connector must let go with less force than its brick clamps |
+| Glue | Only to lock an LED in its seat. A glue that washes off where a weak hold is enough; clear epoxy for an LED potted into a spare brick | | Solvent cement marks the plastic. Cyanoacrylate fogs transparent parts and cannot be removed without attacking the plastic, so it stays away from the fires and the windows |
+| Room for a board | Leaving out hidden bricks, not cutting the base | Yes: the carrier of the board, which does not exist as a brick | The base carries the rock panels and the foundation of the keep; which bricks are free shows on the model |
 
-- **A printed brick goes in only after the calibration** of [printed-parts.md](printed-parts.md):
+- **Tools.** A pin vice with sharp steel drills of 0.6 mm to 1.5 mm, a needle for the centre mark,
+  the brick clamped or pressed onto a plate. A rotary tool melts the plastic at its usual speeds.
+- **Every operation is tried on a spare first,** and the spare is pressed back between two
+  originals to see whether it still clamps.
+- **A printed part goes in only after the calibration** of [printed-parts.md](printed-parts.md):
   it clamps slightly lighter than an original and sits between originals that interlock above and
   below it.
-- **Tools for the originals.** A pin vice with sharp steel drills of 0.6 mm to 1.5 mm, a needle for
-  the centre mark, the brick clamped or pressed onto a plate. A rotary tool melts the plastic at its
-  usual speeds.
-- **Every operation on an original is tried on a spare first,** and the spare is pressed back
-  between two originals to see whether it still clamps.
 - Documented failures of others are wandering and broken drills, melting at high speed and holes in
   the wrong place. Whitening and cracks around a hole were not described anywhere.
 
@@ -334,8 +337,8 @@ instructions do not show it reliably.
 
 1. Vertically in the well shaft, the tower shafts, the pillar of the Saalbau and the joist bays
    under the floors, see [model.md](model.md).
-2. Through walls by windows, arrow slits and door arches, and otherwise through a passage: a
-   printed brick with a duct where it is hidden, a drilled original where it shows.
+2. Through walls by windows, arrow slits and door arches, and otherwise through a hole of 1 mm
+   drilled into a brick, a hidden one where there is a choice.
 3. The sets that are still to be built get their wires while they are built. A documented build
    that did so hid its wires better than one wired afterwards.
 

@@ -23,9 +23,9 @@ The brief was carried out on 2026-11-19. It stays in the repository as the recor
 
 While the brief was carried out, the owner changed three of its fixed constraints, and the plan
 follows the new ones: the controllers are several Raspberry Pi Pico 2 W inside the castle instead
-of one Pico 2 in the rock base; a brick that has to change is replaced by a printed one where it
-cannot be seen, and a visible one may be drilled, cut and glued once a replacement brick is at
-hand; and the lighting is built in stages, starting with the base castle and the Bergfried.
+of one Pico 2 in the rock base; bricks may be drilled, cut and glued once replacement bricks are at
+hand, and a part is printed only where it cannot be seen and a print is really worth it; and the
+lighting is built in stages, starting with the base castle and the Bergfried.
 
 Open after this session: the first order and the bench test, an update over the radio, the
 firmware support for several controllers, a layout and later a circuit board for the board of a

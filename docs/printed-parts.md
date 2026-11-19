@@ -28,19 +28,22 @@ load through its clutch alone, and is reprinted when it loosens.
 
 ### Where a print is used
 
-The owner's rule, see [hardware.md](hardware.md#working-on-the-bricks):
+The owner's rule, see [hardware.md](hardware.md#working-on-the-bricks): a part is printed only
+where it cannot be seen and a print is really worth it. Both have to hold.
 
-- **A brick that has to change and cannot be seen is printed.** The brick with the duct, the seat
-  or the pocket in it replaces the original, which stays whole and is kept. No replacement brick
-  is bought and nothing is drilled.
-- **A brick that can be seen is never printed.** The owner's printers do not reach the colours of
-  the set, see [Colour](#colour). A visible brick stays an original and is drilled, with a
-  replacement brick at hand.
-- **Parts that do not exist as a brick are printed** and placed out of sight: the carrier for a
-  controller board, the mount of the socket of the power lead, the brick with a pocket for a floor
-  connector, holders for the LEDs and inserts that block stray light.
+- **Worth it: a part that does not exist as a brick.** The carrier for a controller board, the
+  mount of the socket of the power lead, a holder for an LED and an insert that blocks stray
+  light.
+- **Worth it: a shape that cannot be made in an original without cutting away what clamps.** The
+  brick with a pocket for a floor connector, and a brick with a duct for several wires.
+- **Not worth it: a brick that only needs a hole** for a wire or an LED. The original is drilled,
+  with a replacement brick at hand. That takes minutes, while a print needs a model, the
+  calibration and a test first.
+- **Never: a part that can be seen.** The owner's printers do not reach the colours of the set,
+  see [Colour](#colour).
 
-Plain standard bricks are not printed.
+Plain standard bricks are not printed. The list of printed parts stays short on purpose: every
+printed part that clamps brings the weaknesses below into the model.
 
 ### What speaks against a print
 
@@ -57,7 +60,7 @@ Plain standard bricks are not printed.
 - **Unknowns.** Wear on the original studs, staining of light bricks and creep over months are
   documented nowhere; the test plan below answers them before a print is built in.
 - **Effort.** No design file exists yet. A hole of 1 mm in an original is made in minutes; a
-  printed brick needs a model, the calibration and a test first, and pays off from then on.
+  printed brick needs a model, the calibration and a test first.
 
 ## The printers
 
@@ -113,11 +116,10 @@ answers these on spare bricks.
 
 | Part | Printer and material | Notes |
 | --- | --- | --- |
-| Bricks and plates with a cable duct | Filament, PETG | The most numerous printed part. It goes only where no face of it shows, such as inside a floor, in the rock or in the base, loaded in compression between originals. The duct runs in the roof or as a notch in a side wall, so the tubes that clamp stay whole |
-| Carrier of a fire or a candle with a seat for the LED | Filament, PETG; black where light must not pass | Only where the carrier is covered by the parts of the fire. A carrier that shows stays an original and is drilled |
-| Wall feed-through | An original Technic brick with a hole, or a drilled original brick | A wall shows on both sides. Printed only where the brick is hidden, for example below a floor |
+| Brick or plate with a duct for several wires | Filament, PETG | Only where no face of it shows and a drilled hole does not do, such as a trunk that runs along a row of bricks inside a floor, in the rock or in the base. It is loaded in compression between originals. The duct runs in the roof or as a notch in a side wall, so the tubes that clamp stay whole. A single wire gets a hole in an original instead |
+| Wall feed-through | Not printed: an original Technic brick with a hole, or a drilled original brick | A wall shows on both sides, and a hole is quicker than a print |
 | Holder for a pre-wired LED, with a diffuser | Resin; the diffuser as a separate part | Features of a few tenths of a millimetre. It needs no real clutch and sits over one stud with light friction. A separate diffuser can be replaced if it yellows |
-| Connector brick between modules and floors | Filament, PETG or ASA | It has to hold on several studs. The connector in it must separate with less force than the brick clamps, or lifting a floor pulls the brick off |
+| Connector brick between modules and floors | Filament, PETG or ASA | Only where it is hidden; where it shows, the pocket is cut into an original. It has to hold on several studs. The connector in it must separate with less force than the brick clamps, or lifting a floor pulls the brick off |
 | Mount that sets the socket of the power lead flush into the edge of the base | Filament, ASA in black | The part that takes a push and a pull at every plugging. It anchors on a wide field of studs behind original bricks and holds the flange of the socket, whose screw holes are 30 mm apart. Original bricks frame the socket, so that only its face shows |
 | Carrier for the board of a zone | Filament, PETG | Up to 12 × 10 studs: a perfboard of 90 mm × 70 mm measures 11.25 × 8.75 studs. The end of the controller with the antenna stays free of metal |
 | Strain relief for the lead | Filament, PETG, optionally with a TPU pad | Never resin |
@@ -220,16 +222,16 @@ next to the design sources. Any change of them repeats the print.
 2. A plain 1×2 plate and a 2×2 brick with the chosen offsets, as proof that whole parts behave like
    the calibration print.
 3. The plate and the brick with a duct, and a check that a wall built with them closes without gaps.
-4. The carrier with a seat for an LED, the inserts against stray light and the LED holder with its
-   diffuser, tested on the bench with a real LED.
+4. The inserts against stray light and the LED holder with its diffuser, tested on the bench with a
+   real LED.
 5. The carrier for the board of a zone and the strain relief.
 6. The mount of the power lead.
 7. The connector bricks between floors and modules, the part with the highest risk.
 
 ## Open points
 
-- Which of the bricks that need a duct, a seat or a pocket are hidden. Only these are printed, and
-  the model shows it.
+- Which of the places that need a pocket or a duct for several wires are hidden. Only there a
+  print is considered, and the model shows it.
 - The dimensions, the clutch and the colours of the bricks of this set.
 - The nozzles at hand and whether the filtration for ASA is fitted.
 - Shrinkage and compensation values of the resins on this printer.

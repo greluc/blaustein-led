@@ -31,7 +31,7 @@ Taken by the owner on 2026-11-19.
 | Controller | The Raspberry Pi Pico 2 W, whose radio serves for updates and settings. The Pico 2 at hand is the test device |
 | Power | When all controllers are in place, one cable leaves the castle |
 | Driver stage | A buffer on 5 V for every channel; one wire per channel into a room, the resistor of each LED in the room |
-| Intervention | A brick that has to change and cannot be seen is replaced by a printed one from the filament printer. A brick that can be seen stays an original, because a print does not match the colours of the set; it may be drilled, cut and glued where it serves the lighting, provided a matching replacement brick was ordered first |
+| Intervention | Bricks may be drilled, cut and glued where it serves the lighting, provided a replacement brick was ordered first. A printed part is the exception: only where it cannot be seen and a print is really worth it, such as a part that does not exist as a brick or a pocket for a connector. A plain hole is drilled |
 | Firmware | Rust is preferred. Reusing the existing firmware is no argument for or against a design; a new one may be written |
 | Skills, shops, budget | Through-hole soldering, no surface-mount work. Reichelt, BerryBase, Conrad, Völkner and Amazon; no orders shipped directly from China. No fixed budget |
 | Printers | A Prusa CORE One L and an Elegoo Saturn 4 Ultra 16K |
@@ -75,7 +75,7 @@ and the plan was reviewed against them. This is the result, decision by decision
 | The 3.3 V rail is regulated, so ripple does not show | **Wrong** | The regulator of the Pico 2 is a switching regulator that works in bursts at light load. The LEDs now run from the 5 V of the supply |
 | 40 mA in total, because the chip allows 50 mA | **Corrected** | 50 mA is the limit of the RP2040. The RP2350 allows 100 mA. With buffers the limit no longer matters |
 | The Pico 2 has eight ground pins | **Corrected** | Seven, and a separate analogue ground |
-| Nothing is drilled, cut or glued | **Changed by the owner** | A hidden brick is replaced by a printed one with the passage or the seat in it; a visible brick may be worked on once its replacement is at hand. A seat for each LED and passages for the wires remove the largest open risk of the plan, the wire clamped under a wall |
+| Nothing is drilled, cut or glued | **Changed by the owner** | Bricks may be worked on once replacement bricks are at hand. A drilled seat for each LED and drilled passages for the wires remove the largest open risk of the plan, the wire clamped under a wall |
 | Magnetic Micro-USB coupling | **Kept**, as an add-on to a flush socket | One maker specifies a magnetic cable for data. No independent test exists, so the tip sits in a normal socket that also takes an ordinary cable |
 | A Micro-USB to USB-C adapter of Joy-IT for a USB-C socket in the rock | **Dropped** | It has a USB-C plug and a Micro-USB socket, the wrong direction; the controller has Micro-USB, so no adapter is needed |
 | The 5.1 kΩ rule of USB-C, cited from a forum thread | **Confirmed**, from another source | The thread does not state it; an application note of Microchip does |
@@ -89,7 +89,7 @@ and the plan was reviewed against them. This is the result, decision by decision
 | Addressable LEDs are not worth it | **Kept**, with better reasons | A candle of 0.3 mA would be code 6 of 255. Newer types with 16 bits exist as bare chips only |
 | External PWM chips are not worth it | **Kept** | The common chip has 4096 steps at no more than 1526 Hz. A finer one with 16 bits exists, but its board is sold by none of the owner's shops |
 | The USB update needs only the reset interface | **Completed**, and the firmware confirmed | On Windows the device also needs a Microsoft OS 2.0 descriptor, and picotool finds it without options only under the vendor and product ID of the SDK. The `usb-update` feature has both, and its constants match the Pico SDK and picotool, see [Firmware](#firmware) |
-| Printed parts | **New** | Printed parts that clamp are realistic after a calibration on the owner's printers and bricks, see [printed-parts.md](printed-parts.md). They replace every brick that has to change and cannot be seen. They stay out of sight, because their colour and gloss do not match the set |
+| Printed parts | **New** | Printed parts that clamp are realistic after a calibration on the owner's printers and bricks, see [printed-parts.md](printed-parts.md). They are the exception: only where they cannot be seen, because their colour and gloss do not match the set, and only where a print is really worth it. A plain hole is drilled into an original |
 | A light kit might exist | **Settled** | None exists for any of these sets. The parts of one kit maker were examined one by one; its contact plates for removable floors are the one part worth a test |
 
 ## Lighting concept
@@ -319,7 +319,8 @@ faults show before wires are built in.
 1. **First order.** The parts of [bill-of-materials.md](bill-of-materials.md) for stage 1, and two
    or three bags of replacement bricks to compare with the set.
    - Checkpoint: the forward voltage of every LED is measured at 0.3 mA, 1 mA and 3 mA. The
-     replacement bricks match the set in colour and clutch, or serve for practice only.
+     replacement bricks match the set in colour and clutch, or serve for hidden places and for
+     practice only.
 2. **Bench.** One buffer on a breadboard, one LED of every colour behind its resistor, driven by
    the Pico 2 at hand.
    - Checkpoint: the brightness fits in a darkened room and the resistor values are fixed. Amber
@@ -339,12 +340,11 @@ faults show before wires are built in.
 6. **Power lead.** Supply, magnetic lead, socket.
    - Checkpoint: detach and attach twenty times, the firmware starts every time. Then a run of
      24 hours.
-7. **Printed bricks and trial on spare bricks.** Decide on the model which bricks that have to
-   change are hidden. For these, the calibration print of [printed-parts.md](printed-parts.md) and
-   then the bricks with a duct or a seat. For the visible ones, every operation is tried on a
-   spare brick first.
-   - Checkpoint: a printed brick clamps slightly lighter than an original and sits flush between
-     originals. A drilled spare still clamps between two originals.
+7. **Trial on spare bricks.** Every operation on the bricks is tried on a spare brick first. Where
+   a printed part is worth it, the calibration print of [printed-parts.md](printed-parts.md) comes
+   before it.
+   - Checkpoint: a drilled spare still clamps between two originals. A printed part clamps
+     slightly lighter than an original and sits flush between originals.
 8. **Stage 1 in the model.** Base castle and Bergfried.
    - Checkpoint: the floors and the keep come off, no brick stands proud, no wire is visible. The
      picture is tuned in the dark.
@@ -364,9 +364,9 @@ What no source could settle is listed with what was tried under
 - The forward voltage of the LEDs at the planned currents, and their colour on the model.
 - Whether an update over the radio works on the Pico 2 W, and what its radio draws.
 - Whether the board of zone 1 fits the chamber under the terrace.
-- Which of the bricks that have to change are hidden, and whether a printed brick clamps well
-  enough between the bricks of this set.
-- Whether the replacement bricks for the visible ones match the set.
+- Whether the replacement bricks match the set.
+- Whether a printed part clamps well enough on the bricks of this set, for the few places where
+  one is worth it.
 - How a controller knows its channel table, once there are several.
 - Whether data passes the magnetic coupling.
 - The size and quality of the 1.25 mm connectors, which have no datasheet.

@@ -57,9 +57,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - `docs/hardware.md`: one Raspberry Pi Pico 2 W per zone of neighbouring sets, three for the
     castle; a driver stage of 74HCT541 buffers on 5 V with one wire per channel and the resistor
     of each LED in its room; a single power lead with fused 5 V branches between the controllers;
-    keyed connectors; the rule for bricks that have to change (a hidden brick is replaced by a
-    printed one, a visible brick stays an original and is drilled once a replacement brick is at
-    hand); and the installation rules.
+    keyed connectors; the rules for working on the bricks (an original is drilled, cut or glued
+    once a replacement brick is at hand; a part is printed only where it cannot be seen and a
+    print is really worth it); and the installation rules.
   - `docs/bill-of-materials.md`: every part with retailer, article and price, the replacement
     bricks, and the orders by stage.
   - `docs/model.md`: the sets of the series with their item numbers, light points, joints and

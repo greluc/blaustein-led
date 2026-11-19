@@ -27,7 +27,7 @@ otherwise. The pages are listed in [sources.md](sources.md).
 | Power lead and supply | 25.78 € |
 | Small parts | 12.42 € |
 | **Electronics** | **257.52 €** |
-| Replacement bricks for visible bricks, an upper estimate | about 127 € |
+| Replacement bricks, an estimate | about 127 € |
 
 Not included: shipping, the optional parts marked below, a pin vice with drills, tools, the
 filament and resin of the printed parts, and the circuit boards that may later replace the
@@ -163,10 +163,9 @@ drills of 0.6 mm to 1.5 mm were not researched to an article.
 
 ## Replacement bricks
 
-Only a brick that can be seen is worked on, and only after its replacement has arrived, see
-[hardware.md](hardware.md#working-on-the-bricks). A brick that cannot be seen is replaced by a
-printed one and needs no replacement; it costs filament. BlueBrixx sells no single bricks; the
-source is its Part Packs, bags of 25 to 200 pieces of one shape and colour.
+Bricks are worked on only after their replacements have arrived, see
+[hardware.md](hardware.md#working-on-the-bricks). BlueBrixx sells no single bricks; the source is
+its Part Packs, bags of 25 to 200 pieces of one shape and colour.
 
 | Purpose | Bags | Sum |
 | --- | --- | --- |
@@ -175,10 +174,10 @@ source is its Part Packs, bags of 25 to 200 pieces of one shape and colour.
 | Fires: the 1×1 slope in transparent red and in two transparent oranges, the flame piece, round 1×1 plates in transparent red and orange | 6 at 4.95 € to 5.95 € | 33.70 € |
 | **Together** | **24** | **about 127 €** |
 
-- The list was drawn up before printed bricks took over the hidden places, so it is an upper
-  estimate. A bag is ordered only for a shape that is worked on where it shows. The six bags of
-  plates are the likeliest to drop out, because a plate inside a floor is hidden; the model shows
-  it.
+- A bag is ordered only for a shape that is really worked on; the model shows which. The
+  replacement of a brick that cannot be seen need not match in colour, so a bag that fails the
+  comparison with the set still serves there.
+- The few printed parts need no replacement brick, see [printed-parts.md](printed-parts.md).
 - Shipping costs 5.95 € and is free from 99 €.
 - Not priced: a slope in the orange of the set, if neither orange of the packs matches; the parts
   of the candles and of the hoods, whose shapes are identified on the model.
@@ -219,7 +218,7 @@ sample for the later stages.
 - A pack of LEDs is ordered one stage before the last LED of the previous pack is used, so a
   damaged LED does not stop a stage. At the end four orange, five red and eight warm white LEDs
   are left.
-- The replacement bricks for the visible bricks of a stage are ordered with it, once the first
-  three bags have shown whether the Part Packs match.
+- The replacement bricks for a stage are ordered with it, once the first three bags have shown
+  whether the Part Packs match.
 - The connectors at every unit that the instructions of the expansions lift off are counted when
   the removal steps of each instruction have been read.
